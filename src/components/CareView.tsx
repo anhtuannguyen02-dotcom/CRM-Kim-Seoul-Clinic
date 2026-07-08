@@ -10,20 +10,31 @@ import {
   Sparkles,
   Calendar,
   CheckCircle,
-  Plus
+  Plus,
+  X,
+  Edit3,
+  Trash2
 } from 'lucide-react';
-import { CRMTask } from '../types';
+import { CRMTask, Customer } from '../types';
 
 interface CareViewProps {
   crmTasks: CRMTask[];
+  customers: Customer[];
   onCompleteTask: (id: string) => void;
   onAddLog: (taskId: string, log: { note: string; channel: 'Gọi điện' | 'SMS' | 'Zalo' }) => void;
+  onAddTask?: (task: Omit<CRMTask, 'id' | 'loggedInteractions'>) => void;
+  onUpdateTask?: (id: string, updatedFields: Partial<CRMTask>) => void;
+  onDeleteTask?: (id: string) => void;
 }
 
 export default function CareView({
   crmTasks,
+  customers,
   onCompleteTask,
-  onAddLog
+  onAddLog,
+  onAddTask,
+  onUpdateTask,
+  onDeleteTask
 }: CareViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'completed'>('pending');
@@ -33,6 +44,77 @@ export default function CareView({
   // Log entry state
   const [logNote, setLogNote] = useState('');
   const [logChannel, setLogChannel] = useState<'Gọi điện' | 'SMS' | 'Zalo'>('Gọi điện');
+
+  // Add CRM Task States
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newTaskCustomerId, setNewTaskCustomerId] = useState('');
+  const [newTaskType, setNewTaskType] = useState<CRMTask['type']>('Sau liệu trình');
+  const [newTaskServiceName, setNewTaskServiceName] = useState('');
+  const [newTaskDescription, setNewTaskDescription] = useState('');
+  const [newTaskDueDate, setNewTaskDueDate] = useState('2026-07-15');
+
+  // Edit CRM Task States
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editTaskType, setEditTaskType] = useState<CRMTask['type']>('Sau liệu trình');
+  const [editTaskServiceName, setEditTaskServiceName] = useState('');
+  const [editTaskDescription, setEditTaskDescription] = useState('');
+  const [editTaskDueDate, setEditTaskDueDate] = useState('');
+  const [editTaskStatus, setEditTaskStatus] = useState<CRMTask['status']>('Cần liên hệ');
+
+  const handleStartEditTask = (task: CRMTask) => {
+    setEditingTaskId(task.id);
+    setEditTaskType(task.type);
+    setEditTaskServiceName(task.serviceName || '');
+    setEditTaskDescription(task.description);
+    setEditTaskDueDate(task.dueDate);
+    setEditTaskStatus(task.status);
+    setShowEditModal(true);
+  };
+
+  const handleCreateTaskSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskCustomerId || !newTaskDescription || !onAddTask) return;
+
+    const selectedCust = customers.find(c => c.id === newTaskCustomerId);
+    if (!selectedCust) return;
+
+    onAddTask({
+      customerId: selectedCust.id,
+      customerName: selectedCust.name,
+      customerPhone: selectedCust.phone,
+      customerAvatar: selectedCust.avatar,
+      type: newTaskType,
+      serviceName: newTaskServiceName || undefined,
+      description: newTaskDescription,
+      dueDate: newTaskDueDate,
+      status: 'Cần liên hệ'
+    });
+
+    setShowAddModal(false);
+    setNewTaskCustomerId('');
+    setNewTaskServiceName('');
+    setNewTaskDescription('');
+    setNewTaskDueDate('2026-07-15');
+    alert('Thêm nhiệm vụ chăm sóc thành công!');
+  };
+
+  const handleEditTaskSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTaskId || !editTaskDescription || !onUpdateTask) return;
+
+    onUpdateTask(editingTaskId, {
+      type: editTaskType,
+      serviceName: editTaskServiceName || undefined,
+      description: editTaskDescription,
+      dueDate: editTaskDueDate,
+      status: editTaskStatus
+    });
+
+    setShowEditModal(false);
+    setEditingTaskId(null);
+    alert('Cập nhật nhiệm vụ thành công!');
+  };
 
   // Filter tasks
   const filteredTasks = crmTasks.filter(task => {
@@ -67,7 +149,17 @@ export default function CareView({
       <div id="care-left-columns" className="lg:col-span-2 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 id="care-page-title" className="text-xl font-bold text-slate-800">Chăm sóc Khách hàng</h2>
+            <div className="flex items-center gap-3">
+              <h2 id="care-page-title" className="text-xl font-bold text-slate-800">Chăm sóc Khách hàng</h2>
+              {onAddTask && (
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="px-2.5 py-1 bg-slate-950 hover:bg-slate-850 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all"
+                >
+                  <Plus className="h-3 w-3 text-amber-500" /> Thêm việc
+                </button>
+              )}
+            </div>
             <p className="text-[10px] text-slate-400">Điều phối các chiến dịch tri ân, dặn dò hồi phục sau liệu trình</p>
           </div>
           
@@ -149,14 +241,48 @@ export default function CareView({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1.5">
                       <p className="text-xs font-bold text-slate-900 truncate leading-none">{task.customerName}</p>
-                      <span className={`inline-block px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide rounded ${
-                        task.type === 'Sau liệu trình' ? 'bg-indigo-50 text-indigo-700' :
-                        task.type === 'Nhắc lịch dặm' ? 'bg-amber-50 text-amber-700' :
-                        task.type === 'Sinh nhật' ? 'bg-rose-50 text-rose-700' :
-                        'bg-emerald-50 text-emerald-700'
-                      }`}>
-                        {task.type}
-                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className={`inline-block px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide rounded ${
+                          task.type === 'Sau liệu trình' ? 'bg-indigo-50 text-indigo-700' :
+                          task.type === 'Nhắc lịch dặm' ? 'bg-amber-50 text-amber-700' :
+                          task.type === 'Sinh nhật' ? 'bg-rose-50 text-rose-700' :
+                          'bg-emerald-50 text-emerald-700'
+                        }`}>
+                          {task.type}
+                        </span>
+
+                        {onUpdateTask && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStartEditTask(task);
+                            }}
+                            className="p-1 text-slate-400 hover:text-amber-500 rounded-lg hover:bg-slate-50 transition-colors animate-none"
+                            title="Chỉnh sửa nhiệm vụ"
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+
+                        {onDeleteTask && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Bạn có chắc chắn muốn xóa nhiệm vụ chăm sóc cho khách hàng "${task.customerName}" không?`)) {
+                                onDeleteTask(task.id);
+                                if (selectedTaskId === task.id) {
+                                  setSelectedTaskId(null);
+                                }
+                                alert('Đã xóa nhiệm vụ!');
+                              }
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-slate-50 transition-colors"
+                            title="Xóa nhiệm vụ"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <p className="text-[10px] text-slate-500 mt-2 font-medium leading-relaxed font-sans min-h-[30px] line-clamp-2">
                       {task.description}
@@ -309,6 +435,209 @@ export default function CareView({
           </div>
         )}
       </div>
+
+      {/* Add CRM Task Modal */}
+      {showAddModal && (
+        <div id="add-task-modal-overlay" className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div id="add-task-modal-content" className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <span className="font-bold text-slate-900 text-sm">Thêm nhiệm vụ chăm sóc khách hàng</span>
+              <button onClick={() => setShowAddModal(false)} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTaskSubmit} className="p-6 space-y-4 text-xs text-slate-700">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Khách hàng nhận chăm sóc *</label>
+                <select
+                  id="new-task-cust-select"
+                  value={newTaskCustomerId}
+                  onChange={(e) => setNewTaskCustomerId(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                >
+                  <option value="">-- Chọn khách hàng --</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Loại chăm sóc *</label>
+                  <select
+                    id="new-task-type-select"
+                    value={newTaskType}
+                    onChange={(e) => setNewTaskType(e.target.value as CRMTask['type'])}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  >
+                    <option value="Sau liệu trình">Sau liệu trình</option>
+                    <option value="Nhắc lịch dặm">Nhắc lịch dặm</option>
+                    <option value="Sinh nhật">Sinh nhật</option>
+                    <option value="Ưu đãi VIP">Ưu đãi VIP</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Hạn hoàn thành *</label>
+                  <input
+                    id="new-task-due"
+                    type="date"
+                    value={newTaskDueDate}
+                    onChange={(e) => setNewTaskDueDate(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Liệu trình liên quan (Không bắt buộc)</label>
+                <input
+                  id="new-task-srv"
+                  type="text"
+                  placeholder="E.g. Tiêm Meso, Laser Pico, v.v."
+                  value={newTaskServiceName}
+                  onChange={(e) => setNewTaskServiceName(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Mô tả chi tiết việc cần chăm sóc *</label>
+                <textarea
+                  id="new-task-desc"
+                  placeholder="E.g. Nhắc nhở dặn dâu sau tiêm, thăm hỏi dặm lại..."
+                  value={newTaskDescription}
+                  onChange={(e) => setNewTaskDescription(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 h-20 resize-none"
+                />
+              </div>
+
+              <div className="pt-4 flex gap-3 justify-end">
+                <button
+                  id="add-task-cancel"
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
+                >
+                  Hủy
+                </button>
+                <button
+                  id="add-task-submit"
+                  type="submit"
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-sm"
+                >
+                  Tạo nhiệm vụ
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit CRM Task Modal */}
+      {showEditModal && (
+        <div id="edit-task-modal-overlay" className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div id="edit-task-modal-content" className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <span className="font-bold text-slate-900 text-sm">Chỉnh sửa nhiệm vụ chăm sóc</span>
+              <button onClick={() => setShowEditModal(false)} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditTaskSubmit} className="p-6 space-y-4 text-xs text-slate-700">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Loại chăm sóc *</label>
+                  <select
+                    id="edit-task-type-select"
+                    value={editTaskType}
+                    onChange={(e) => setEditTaskType(e.target.value as CRMTask['type'])}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  >
+                    <option value="Sau liệu trình">Sau liệu trình</option>
+                    <option value="Nhắc lịch dặm">Nhắc lịch dặm</option>
+                    <option value="Sinh nhật">Sinh nhật</option>
+                    <option value="Ưu đãi VIP">Ưu đãi VIP</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Hạn hoàn thành *</label>
+                  <input
+                    id="edit-task-due"
+                    type="date"
+                    value={editTaskDueDate}
+                    onChange={(e) => setEditTaskDueDate(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Liệu trình liên quan</label>
+                  <input
+                    id="edit-task-srv"
+                    type="text"
+                    placeholder="E.g. Tiêm Meso, Laser Pico, v.v."
+                    value={editTaskServiceName}
+                    onChange={(e) => setEditTaskServiceName(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Trạng thái *</label>
+                  <select
+                    id="edit-task-status-select"
+                    value={editTaskStatus}
+                    onChange={(e) => setEditTaskStatus(e.target.value as CRMTask['status'])}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  >
+                    <option value="Cần liên hệ">Cần liên hệ</option>
+                    <option value="Đang xử lý">Đang xử lý</option>
+                    <option value="Đã hoàn thành">Đã hoàn thành</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Mô tả chi tiết việc cần chăm sóc *</label>
+                <textarea
+                  id="edit-task-desc"
+                  placeholder="E.g. Nhắc nhở dặn dâu sau tiêm, thăm hỏi dặm lại..."
+                  value={editTaskDescription}
+                  onChange={(e) => setEditTaskDescription(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 h-20 resize-none"
+                />
+              </div>
+
+              <div className="pt-4 flex gap-3 justify-end">
+                <button
+                  id="edit-task-cancel"
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
+                >
+                  Hủy
+                </button>
+                <button
+                  id="edit-task-submit"
+                  type="submit"
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-sm"
+                >
+                  Lưu thay đổi
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

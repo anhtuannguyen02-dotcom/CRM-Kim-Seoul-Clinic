@@ -10,7 +10,9 @@ import {
   Copy, 
   CheckCircle, 
   Clock, 
-  DollarSign
+  DollarSign,
+  Edit3,
+  Trash2
 } from 'lucide-react';
 import { Promotion } from '../types';
 
@@ -18,16 +20,59 @@ interface PromotionsViewProps {
   promotions: Promotion[];
   onAddPromotion: (promo: Omit<Promotion, 'id' | 'usageCount'>) => void;
   onUpdatePromoStatus: (id: string, status: Promotion['status']) => void;
+  onUpdatePromotion?: (id: string, updatedFields: Partial<Promotion>) => void;
+  onDeletePromotion?: (id: string) => void;
 }
 
 export default function PromotionsView({
   promotions,
   onAddPromotion,
-  onUpdatePromoStatus
+  onUpdatePromoStatus,
+  onUpdatePromotion,
+  onDeletePromotion
 }: PromotionsViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  // Edit Promotion States
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedPromoId, setSelectedPromoId] = useState<string | null>(null);
+  const [editCode, setEditCode] = useState('');
+  const [editTitle, setEditTitle] = useState('');
+  const [editVal, setEditVal] = useState('');
+  const [editMinSpend, setEditMinSpend] = useState(0);
+  const [editExpiry, setEditExpiry] = useState('2026-12-31');
+  const [editDesc, setEditDesc] = useState('');
+
+  const handleStartEditPromo = (promo: Promotion) => {
+    setSelectedPromoId(promo.id);
+    setEditCode(promo.code);
+    setEditTitle(promo.title);
+    setEditVal(promo.discountValue);
+    setEditMinSpend(promo.minSpend);
+    setEditExpiry(promo.expiryDate);
+    setEditDesc(promo.description || '');
+    setShowEditModal(true);
+  };
+
+  const handleEditPromoSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPromoId || !onUpdatePromotion) return;
+
+    onUpdatePromotion(selectedPromoId, {
+      code: editCode.toUpperCase().replace(/\s+/g, ''),
+      title: editTitle,
+      discountValue: editVal,
+      minSpend: Number(editMinSpend),
+      expiryDate: editExpiry,
+      description: editDesc
+    });
+
+    setShowEditModal(false);
+    setSelectedPromoId(null);
+    alert('Cập nhật Voucher thành công!');
+  };
 
   // Form states for new promo voucher
   const [newCode, setNewCode] = useState('');
@@ -133,7 +178,34 @@ export default function PromotionsView({
                   }`}>
                     {promo.status}
                   </span>
-                  <span className="text-[10px] text-slate-400 font-medium font-mono">{promo.usageCount} lượt dùng</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-slate-400 font-medium font-mono mr-1.5">{promo.usageCount} lượt dùng</span>
+                    
+                    {onUpdatePromotion && (
+                      <button
+                        onClick={() => handleStartEditPromo(promo)}
+                        className="p-1 text-slate-400 hover:text-amber-500 hover:bg-slate-100 rounded-lg transition-colors"
+                        title="Chỉnh sửa Voucher"
+                      >
+                        <Edit3 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    
+                    {onDeletePromotion && (
+                      <button
+                        onClick={() => {
+                          if (confirm(`Bạn có chắc chắn muốn xóa mã voucher "${promo.code}" không?`)) {
+                            onDeletePromotion(promo.id);
+                            alert('Đã xóa voucher thành công!');
+                          }
+                        }}
+                        className="p-1 text-slate-400 hover:text-rose-500 hover:bg-slate-100 rounded-lg transition-colors"
+                        title="Xóa Voucher"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div>
@@ -303,6 +375,114 @@ export default function PromotionsView({
                   className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-sm"
                 >
                   Kích hoạt mã Voucher
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Voucher Modal */}
+      {showEditModal && (
+        <div id="edit-promo-modal-overlay" className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div id="edit-promo-modal-content" className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <span className="font-bold text-slate-900 text-sm">Chỉnh sửa thông tin Voucher</span>
+              <button onClick={() => setShowEditModal(false)} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditPromoSubmit} className="p-6 space-y-4 text-xs text-slate-700">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Mã Voucher *</label>
+                  <input
+                    id="edit-promo-code"
+                    type="text"
+                    placeholder="E.g. MESO30"
+                    value={editCode}
+                    onChange={(e) => setEditCode(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-mono uppercase font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Mức giảm giá *</label>
+                  <input
+                    id="edit-promo-val"
+                    type="text"
+                    placeholder="E.g. 20% hoặc 1.000.000đ"
+                    value={editVal}
+                    onChange={(e) => setEditVal(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Tên chiến dịch *</label>
+                <input
+                  id="edit-promo-title"
+                  type="text"
+                  placeholder="E.g. Tri ân vàng nâng tầm rạng rỡ..."
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Hạn mức chi tiêu tối thiểu</label>
+                  <input
+                    id="edit-promo-min"
+                    type="number"
+                    value={editMinSpend}
+                    onChange={(e) => setEditMinSpend(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Hạn hết hạn</label>
+                  <input
+                    id="edit-promo-expiry"
+                    type="date"
+                    value={editExpiry}
+                    onChange={(e) => setEditExpiry(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Mô tả / Thể lệ tham gia</label>
+                <textarea
+                  id="edit-promo-desc"
+                  placeholder="Giảm giá áp dụng cho liệu trình bắn Laser..."
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 h-20 bg-white resize-none"
+                />
+              </div>
+
+              <div className="pt-4 flex gap-3 justify-end">
+                <button
+                  id="edit-promo-cancel-btn"
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
+                >
+                  Hủy
+                </button>
+                <button
+                  id="edit-promo-submit-btn"
+                  type="submit"
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-sm"
+                >
+                  Lưu thay đổi
                 </button>
               </div>
             </form>

@@ -12,7 +12,9 @@ import {
   DollarSign, 
   ChevronRight, 
   ChevronLeft,
-  Users
+  Users,
+  Edit3,
+  Trash2
 } from 'lucide-react';
 import { Appointment, Customer, ServiceItem, Technician } from '../types';
 
@@ -23,6 +25,8 @@ interface AppointmentsViewProps {
   technicians: Technician[];
   onAddAppointment: (appt: Omit<Appointment, 'id'>) => void;
   onUpdateAppointmentStatus: (id: string, status: Appointment['status']) => void;
+  onUpdateAppointment?: (id: string, updatedFields: Partial<Appointment>) => void;
+  onDeleteAppointment?: (id: string) => void;
 }
 
 export default function AppointmentsView({
@@ -31,11 +35,68 @@ export default function AppointmentsView({
   services,
   technicians,
   onAddAppointment,
-  onUpdateAppointmentStatus
+  onUpdateAppointmentStatus,
+  onUpdateAppointment,
+  onDeleteAppointment
 }: AppointmentsViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | Appointment['status']>('All');
   const [showBookingModal, setShowBookingModal] = useState(false);
+
+  // Edit Appointment States
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingApptId, setEditingApptId] = useState<string | null>(null);
+  const [editServiceId, setEditServiceId] = useState('');
+  const [editTechnicianId, setEditTechnicianId] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editTime, setEditTime] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editStatus, setEditStatus] = useState<Appointment['status']>('Chờ phục vụ');
+
+  const handleStartEditAppt = (appt: Appointment) => {
+    setEditingApptId(appt.id);
+    
+    // Find matching service and tech ids
+    const matchedSrv = services.find(s => s.name === appt.serviceName);
+    const matchedTech = technicians.find(t => t.name === appt.technicianName);
+    
+    setEditServiceId(matchedSrv?.id || services[0]?.id || '');
+    setEditTechnicianId(matchedTech?.id || technicians[0]?.id || '');
+    setEditDate(appt.date);
+    setEditTime(appt.time);
+    setEditNotes(appt.notes || '');
+    setEditStatus(appt.status);
+    
+    setShowEditModal(true);
+  };
+
+  const handleEditApptSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingApptId || !onUpdateAppointment) return;
+
+    const selectedSrv = services.find(s => s.id === editServiceId);
+    const selectedTech = technicians.find(t => t.id === editTechnicianId);
+
+    if (!selectedSrv || !selectedTech) {
+      alert('Vui lòng chọn dịch vụ và kỹ thuật viên hợp lệ.');
+      return;
+    }
+
+    onUpdateAppointment(editingApptId, {
+      serviceName: selectedSrv.name,
+      price: selectedSrv.price,
+      technicianId: selectedTech.id,
+      technicianName: selectedTech.name,
+      date: editDate,
+      time: editTime,
+      notes: editNotes,
+      status: editStatus
+    });
+
+    setShowEditModal(false);
+    setEditingApptId(null);
+    alert('Cập nhật lịch hẹn thành công!');
+  };
 
   // Stepper state
   const [bookingStep, setBookingStep] = useState(1);
@@ -280,6 +341,31 @@ export default function AppointmentsView({
                             className="px-2 py-1.5 text-rose-500 hover:bg-rose-50 font-medium text-[10px] rounded-lg transition-colors"
                           >
                             Huỷ ca
+                          </button>
+                        )}
+                        
+                        {onUpdateAppointment && (
+                          <button
+                            onClick={() => handleStartEditAppt(appt)}
+                            className="p-1 text-slate-400 hover:text-amber-500 rounded-lg hover:bg-slate-100 transition-colors"
+                            title="Sửa lịch hẹn"
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+
+                        {onDeleteAppointment && (
+                          <button
+                            onClick={() => {
+                              if (confirm(`Bạn có chắc chắn muốn xóa lịch hẹn của khách hàng "${appt.customerName}" không?`)) {
+                                onDeleteAppointment(appt.id);
+                                alert('Xóa lịch hẹn thành công!');
+                              }
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-slate-100 transition-colors"
+                            title="Xóa lịch hẹn"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         )}
                       </div>
@@ -681,6 +767,121 @@ export default function AppointmentsView({
               )}
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Edit Appointment Modal */}
+      {showEditModal && (
+        <div id="edit-appt-modal-overlay" className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div id="edit-appt-modal-content" className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <span className="font-bold text-slate-900 text-sm">Chỉnh sửa thông tin Lịch hẹn</span>
+              <button onClick={() => setShowEditModal(false)} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditApptSubmit} className="p-6 space-y-4 text-xs text-slate-700">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Dịch vụ điều trị *</label>
+                <select
+                  id="edit-appt-srv-select"
+                  value={editServiceId}
+                  onChange={(e) => setEditServiceId(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                >
+                  {services.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name} ({formatVND(s.price)})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Bác sĩ / Kỹ thuật viên *</label>
+                <select
+                  id="edit-appt-tech-select"
+                  value={editTechnicianId}
+                  onChange={(e) => setEditTechnicianId(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                >
+                  {technicians.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.role})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Ngày hẹn *</label>
+                  <input
+                    id="edit-appt-date"
+                    type="date"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Giờ hẹn *</label>
+                  <input
+                    id="edit-appt-time"
+                    type="time"
+                    value={editTime}
+                    onChange={(e) => setEditTime(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Trạng thái ca hẹn *</label>
+                <select
+                  id="edit-appt-status"
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as Appointment['status'])}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold"
+                >
+                  <option value="Chờ phục vụ">Chờ phục vụ</option>
+                  <option value="Đang thực hiện">Đang thực hiện</option>
+                  <option value="Hoàn thành">Hoàn thành</option>
+                  <option value="Đã huỷ">Đã huỷ</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Ghi chú điều trị</label>
+                <textarea
+                  id="edit-appt-notes"
+                  placeholder="Yêu cầu chuẩn bị đặc biệt..."
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 h-20 resize-none"
+                />
+              </div>
+
+              <div className="pt-4 flex gap-3 justify-end">
+                <button
+                  id="edit-appt-cancel"
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
+                >
+                  Hủy
+                </button>
+                <button
+                  id="edit-appt-submit"
+                  type="submit"
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-sm"
+                >
+                  Lưu thay đổi
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

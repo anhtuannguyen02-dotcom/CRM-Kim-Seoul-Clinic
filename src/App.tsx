@@ -40,22 +40,35 @@ export default function App() {
 
   // Clinic Profile State
   const [clinicProfile, setClinicProfile] = useState<ClinicProfile>(() => {
-    const saved = localStorage.getItem('kimseoul_clinic_profile');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return {
+    const defaultProfile = {
       name: 'Kim Seoul Clinic - Viện Thẩm Mỹ Hoàng Gia',
-      address: 'Số 18, Đường Sương Nguyệt Ánh, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh',
-      phone: '1900 888 999',
-      hours: '09:00 - 20:00 (Mỗi ngày)',
+      address: 'Vinhome Smart City Tây Mỗ Nam Từ Liêm Hà Nội',
+      phone: '0869135553',
+      hours: '09:00 - 21:00 (Mỗi ngày)',
       managerName: 'Đoàn Thị Huyền Trang',
-      managerAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAfRRspgKk3Pu_Ynok-987fQAqFAYzZGSIOZZ_pAlY4MR63jnal_1UCCH6t98jbHGFYdr1XP6R4ccQVfg3cRDKyZKMUw1dPl1MifcAVcNi1jZPEn6FOcgdo5zRS57HQMRl_eG3CNOxcDmmZKg1XHVZY2LLKB7LW6_BQvAHuXY59tTY2IyLWKwnsPxSQTCWFSazH7oNndjYvnvAwxP-U1EeKhy40NFQgZTfdqZ5FORLWNBN2DigU0DbMnA',
+      managerAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=600&h=600',
       logoUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB9lWUDJ3O5naySwCalAe_Vokbm8JC-rAXwCklB42fzS0uaCutuIEMjj8Psb7wPTktg3efiYVXNonj7kBk2-T2Y8_kcl03iTqitJP0B4bZCWAzy5S_0iW-j8csVI3ijVExl2cC74p7qyNgKXAhIhE18R_V9A4WznK6iN69rzwo3isWgXHyuzlr8d7XMfXAnncICex_okKOllYUNq6wXYk0X0WAaxl_SR_tp7v7y3zcJMASpZR8dsLb19U6xd1o80faAiFo',
       dashboardImageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBYFpco8GVUNjAdNMEDCeaGaf3GAI8Heo3rxuWTy-fmPBVUKdjS4wSvY7UyXgsYqzdtWHjS7kLMzUObGhLeIz3VVpo52aimkW2CTCDnwH3Or-MS-sc7YFVspgAVPBHboflWr54BitxOub8d_NlfhojZyud-s4Pj3S1cT5Z0tJI5D-525A5WjyNjXDa_9zsZfyBja9onbsjfFM8apk8AdAsEW_QnjhboL2AeT1x8tCursXdY_sTCOWh8rA'
     };
+
+    const saved = localStorage.getItem('kimseoul_clinic_profile');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // If they have legacy credentials/address/phone, migrate them to the new requested values
+        if (parsed.phone === '1900 888 999' || parsed.address?.includes('Sương Nguyệt Ánh') || !parsed.address) {
+          return {
+            ...parsed,
+            address: defaultProfile.address,
+            phone: defaultProfile.phone,
+            hours: defaultProfile.hours,
+            managerAvatar: defaultProfile.managerAvatar
+          };
+        }
+        return parsed;
+      } catch (e) {}
+    }
+    return defaultProfile;
   });
 
   const [username, setUsername] = useState(() => {
@@ -88,7 +101,16 @@ export default function App() {
 
   const [technicians, setTechnicians] = useState<Technician[]>(() => {
     const saved = localStorage.getItem('kimseoul_technicians');
-    return saved ? JSON.parse(saved) : INITIAL_TECHNICIANS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.some((t: any) => t.name === 'Phạm Minh Tú' || t.name === 'Nguyễn Đông Nhi' || t.name === 'Trần Hà Phương')) {
+          return INITIAL_TECHNICIANS;
+        }
+        return parsed;
+      } catch (e) {}
+    }
+    return INITIAL_TECHNICIANS;
   });
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
@@ -98,7 +120,16 @@ export default function App() {
 
   const [appointments, setAppointments] = useState<Appointment[]>(() => {
     const saved = localStorage.getItem('kimseoul_appointments');
-    return saved ? JSON.parse(saved) : INITIAL_APPOINTMENTS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.some((a: any) => a.technicianName === 'Phạm Minh Tú' || a.technicianName === 'Trần Hà Phương')) {
+          return INITIAL_APPOINTMENTS;
+        }
+        return parsed;
+      } catch (e) {}
+    }
+    return INITIAL_APPOINTMENTS;
   });
 
   const [crmTasks, setCrmTasks] = useState<CRMTask[]>(() => {
@@ -144,6 +175,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('kimseoul_stats', JSON.stringify(stats));
   }, [stats]);
+
+  useEffect(() => {
+    localStorage.setItem('kimseoul_clinic_profile', JSON.stringify(clinicProfile));
+  }, [clinicProfile]);
 
   // Handle Login Action
   const handleLogin = (e: React.FormEvent) => {
@@ -409,6 +444,21 @@ export default function App() {
     }));
   };
 
+  // Update staff details
+  const handleUpdateStaff = (id: string, updatedFields: Partial<Technician>) => {
+    setTechnicians(technicians.map(t => {
+      if (t.id === id) {
+        return { ...t, ...updatedFields };
+      }
+      return t;
+    }));
+  };
+
+  // Delete staff member
+  const handleDeleteStaff = (id: string) => {
+    setTechnicians(technicians.filter(t => t.id !== id));
+  };
+
   // Add Service Item
   const handleAddService = (newSrv: Omit<ServiceItem, 'id'>) => {
     const srv: ServiceItem = {
@@ -443,6 +493,51 @@ export default function App() {
     }));
   };
 
+  // Delete Customer
+  const handleDeleteCustomer = (id: string) => {
+    setCustomers(customers.filter(c => c.id !== id));
+  };
+
+  // Edit Promotion
+  const handleUpdatePromotion = (id: string, updatedFields: Partial<Promotion>) => {
+    setPromotions(promotions.map(p => p.id === id ? { ...p, ...updatedFields } : p));
+  };
+
+  // Delete Promotion
+  const handleDeletePromotion = (id: string) => {
+    setPromotions(promotions.filter(p => p.id !== id));
+  };
+
+  // Add CRM Task
+  const handleAddCRMTask = (newTask: Omit<CRMTask, 'id' | 'loggedInteractions'>) => {
+    const task: CRMTask = {
+      ...newTask,
+      id: `task_${Date.now()}`,
+      loggedInteractions: []
+    };
+    setCrmTasks([task, ...crmTasks]);
+  };
+
+  // Edit CRM Task
+  const handleUpdateCRMTask = (id: string, updatedFields: Partial<CRMTask>) => {
+    setCrmTasks(crmTasks.map(t => t.id === id ? { ...t, ...updatedFields } : t));
+  };
+
+  // Delete CRM Task
+  const handleDeleteCRMTask = (id: string) => {
+    setCrmTasks(crmTasks.filter(t => t.id !== id));
+  };
+
+  // Edit Appointment
+  const handleUpdateAppointment = (id: string, updatedFields: Partial<Appointment>) => {
+    setAppointments(appointments.map(a => a.id === id ? { ...a, ...updatedFields } : a));
+  };
+
+  // Delete Appointment
+  const handleDeleteAppointment = (id: string) => {
+    setAppointments(appointments.filter(a => a.id !== id));
+  };
+
   // Render view depending on active tab
   const renderView = () => {
     switch (currentTab) {
@@ -468,6 +563,8 @@ export default function App() {
             technicians={technicians}
             onAddAppointment={handleAddAppointment}
             onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
+            onUpdateAppointment={handleUpdateAppointment}
+            onDeleteAppointment={handleDeleteAppointment}
           />
         );
       case 'customers':
@@ -481,14 +578,19 @@ export default function App() {
             onUsePackageSession={handleUsePackageSession}
             onAddBeforeAfterImage={handleAddBeforeAfterImage}
             onUpdateCustomer={handleUpdateCustomer}
+            onDeleteCustomer={handleDeleteCustomer}
           />
         );
       case 'care':
         return (
           <CareView
             crmTasks={crmTasks}
+            customers={customers}
             onCompleteTask={handleCompleteTask}
             onAddLog={handleAddCareLog}
+            onAddTask={handleAddCRMTask}
+            onUpdateTask={handleUpdateCRMTask}
+            onDeleteTask={handleDeleteCRMTask}
           />
         );
       case 'promotions':
@@ -497,6 +599,8 @@ export default function App() {
             promotions={promotions}
             onAddPromotion={handleAddPromotion}
             onUpdatePromoStatus={handleUpdatePromoStatus}
+            onUpdatePromotion={handleUpdatePromotion}
+            onDeletePromotion={handleDeletePromotion}
           />
         );
       case 'staff':
@@ -505,6 +609,8 @@ export default function App() {
             technicians={technicians}
             onUpdateTechStatus={handleUpdateTechStatus}
             onAddStaff={handleAddStaff}
+            onUpdateStaff={handleUpdateStaff}
+            onDeleteStaff={handleDeleteStaff}
           />
         );
       case 'settings':

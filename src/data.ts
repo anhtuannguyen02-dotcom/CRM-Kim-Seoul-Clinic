@@ -71,20 +71,20 @@ export const INITIAL_SERVICES: ServiceItem[] = [
 export const INITIAL_TECHNICIANS: Technician[] = [
   {
     id: 'tech_1',
-    name: 'Phạm Minh Tú',
+    name: 'Hoài Anh',
     avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCbqPaDKsIMo_SiwkGPXsi2BQQ3Hm1BgdfSxfNVIDCGvzt-4oM6e0uhejFC2D1jkIWoehRKVP8UrB7ALitKedqgw9nrZ3svIlkXIplilS1_VbHt2rH-ytcjc90X3gkcldt5JgTBOOQyFy9A95U4VKzxzCr8Y0b4LoXotDV7aBpQKuLrpeEkO0s3A6c6bik5hafUbwsw9aJbuQm3eDuU9SawTjAc5v9mf8nsbFf8jnyhjSiSbmw7y0j5qg',
-    role: 'Bác sĩ Da liễu / Chuyên gia Laser',
+    role: 'Bác Sĩ',
     status: 'Đang bận',
     currentRoom: 'Phòng VIP 1',
     rating: 4.9,
     completedJobs: 412,
-    specialty: ['Thermage FLX', 'Ultherapy', 'Laser Pico']
+    specialty: ['Thermage FLX', 'Ultherapy', 'Laser Pico', 'Tiêm Botox']
   },
   {
     id: 'tech_2',
-    name: 'Nguyễn Đông Nhi',
+    name: 'Nguyễn Thị Vân Anh',
     avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBxGJeAb7RjqCBvFf7cK957kTGrR7dvT2PNmAkaYy0f_F0_LujC5RkM7Lea268Xcb_zlalyHB7LRgJm5OfEdv64w-X5eaeh_EsvXHbGgmA__ufaJNf0XSlejw5wH4VrSODjd7WnoXjXd2YIHLKbXca-iFYE5HCERYUDrUG8HXhu6IrwBbx48gfjczl6KjQeEZjTML8y0o_cNKKkj45UllueL_oIH7w_MiutOZUgRnsk_EgorTiquZH1mQ',
-    role: 'Kỹ thuật viên Trưởng',
+    role: 'Kỹ thuật trưởng',
     status: 'Sẵn sàng',
     rating: 4.8,
     completedJobs: 620,
@@ -92,9 +92,9 @@ export const INITIAL_TECHNICIANS: Technician[] = [
   },
   {
     id: 'tech_3',
-    name: 'Trần Hà Phương',
+    name: 'Nguyễn Thị Hạnh',
     avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBw2L6ea1TSxtM2Z3j4gF8jlOelq5MnmgqHRzEMiO05KMlCNg9Suo2Q7ixbDEQCiNFAlY_pWlfLjrCLvQRZwbyMuefhwAkjL4sb_YJQgOdCwMf3svxclnOBCRAr7HoAPs9vceV5nM7BV5qWaIsBvNCE0mKt4ilbkEeuFmbSn8LctgXzfrwa_WSeZx-U5AA1CxzOADYT9MQkNmkn_hqN0v4lRr8fwKbv4iVf8YtQ4RPAQQjV7CIHh86zAw',
-    role: 'Bác sĩ Thẩm mỹ Nội khoa',
+    role: 'Chuyên viên kỹ thuật',
     status: 'Đang bận',
     currentRoom: 'Phòng Laser 2',
     rating: 4.9,
@@ -103,9 +103,9 @@ export const INITIAL_TECHNICIANS: Technician[] = [
   },
   {
     id: 'tech_4',
-    name: 'Lê Quỳnh Anh',
+    name: 'Nguyễn Thị Quỳnh Trang',
     avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCGbb64dQP-apgcvWf6MAROln9wiVtp9eCmS3yakyMR5W9uVnwTIcc2UB4gj55zDIt9wBATeuUY7BUPga5P34AZLBfvrIJdNouKwLSydrhgPYzUUvSPVngxk0PlXotQRziLVK4EamKiNAvdyuoxuKdH9ro3hzV0FKqAsefHoZm4tYtkptUGu-mkTbWJzB631IPG2EtpOF3LAxFYbgSMmPCFwNgH-m5_xDTmToXufPYzkJXJZR7f1y62aw',
-    role: 'Kỹ thuật viên Trị liệu Cao cấp',
+    role: 'Chuyên viên kỹ thuật',
     status: 'Sẵn sàng',
     rating: 4.7,
     completedJobs: 512,
@@ -113,23 +113,13 @@ export const INITIAL_TECHNICIANS: Technician[] = [
   },
   {
     id: 'tech_5',
-    name: 'Hoàng Thị Tuyết Mai',
+    name: 'Nguyễn Thị Phương Thảo',
     avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAvrCjoDOCVr14BWsH-v0lHXHScZ1SScUmiiZRR2eYhlirctdM-n3Jicd7yugXscwGKgTl-iXQClwGS-k6q_Uv0g_efog304hJYgiWrOojDPr_9Gxud-SOp93842tJfcKJwG1t10i0k7T2JoklhPPbkjQpjzo7qXyKvAeuWtmbEkrgYFFUulfOH1R6sGSCFSvPR-ljIkqr8JCvywr93DJLt5XUCBjqQEue1soSXsYChGQgMdJj0nyy6jg',
-    role: 'Kỹ thuật viên Trị liệu Thẩm mỹ',
+    role: 'Sales',
     status: 'Sẵn sàng',
     rating: 4.8,
     completedJobs: 290,
-    specialty: ['Điện di Vitamin C', 'Chăm sóc cơ bản', 'Massage Thư giãn']
-  },
-  {
-    id: 'tech_6',
-    name: 'Nguyễn Phương Lan',
-    avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCFp_wUwu-zuNAvSctjWVg4RO4nz6MQqZp2zOI8a3NKtlRFk_d_8JW1ykv4aanzDAkma-F8M3m99o1IgEvpIWdvkOtIZu0_ujmcv8X82YP2xsMM4IT0aqtlvgLSN82ryZN_cdxdkRlDVlNcUNiAtnYF6wBtJuKMNQtA7ma2A0qECpthYdi_VBAnlM4nWZTXAdPrsAvEG9hs-WM_diOVXCGqqF9JuvJhUHXmjhhV_Mp1i6W5Tc2UY3AJ0Q',
-    role: 'Kỹ thuật viên Body',
-    status: 'Nghỉ phép',
-    rating: 4.6,
-    completedJobs: 340,
-    specialty: ['Tắm trắng phi thuyền', 'Massage Thư giãn', 'Chăm sóc cơ bản']
+    specialty: ['Tư vấn dịch vụ', 'Chăm sóc khách hàng', 'Tối ưu phác đồ']
   }
 ];
 
@@ -267,7 +257,7 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
     serviceName: 'Trẻ hoá da Thermage FLX 900',
     price: 68000000,
     technicianId: 'tech_1',
-    technicianName: 'Phạm Minh Tú',
+    technicianName: 'Hoài Anh',
     date: '2026-07-08',
     time: '09:30',
     status: 'Đang thực hiện',
@@ -282,7 +272,7 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
     serviceName: 'Laser Pico Premium trị nám sạm',
     price: 4200000,
     technicianId: 'tech_4',
-    technicianName: 'Lê Quỳnh Anh',
+    technicianName: 'Nguyễn Thị Quỳnh Trang',
     date: '2026-07-08',
     time: '11:00',
     status: 'Chờ phục vụ',
@@ -297,7 +287,7 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
     serviceName: 'Tiêm Meso căng bóng HA căng mọng',
     price: 8500000,
     technicianId: 'tech_3',
-    technicianName: 'Trần Hà Phương',
+    technicianName: 'Nguyễn Thị Hạnh',
     date: '2026-07-08',
     time: '14:30',
     status: 'Chờ phục vụ',
@@ -312,7 +302,7 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
     serviceName: 'Nâng cơ Ultherapy VIP',
     price: 45000000,
     technicianId: 'tech_1',
-    technicianName: 'Phạm Minh Tú',
+    technicianName: 'Hoài Anh',
     date: '2026-07-09',
     time: '10:00',
     status: 'Chờ phục vụ',
@@ -327,7 +317,7 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
     serviceName: 'Tắm trắng phi thuyền Hoàng Gia',
     price: 5500000,
     technicianId: 'tech_5',
-    technicianName: 'Hoàng Thị Tuyết Mai',
+    technicianName: 'Nguyễn Thị Phương Thảo',
     date: '2026-07-08',
     time: '16:00',
     status: 'Hoàn thành',

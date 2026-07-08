@@ -29,6 +29,7 @@ interface CustomersViewProps {
   onUsePackageSession: (customerId: string, packageName: string, note: string, technician: string) => void;
   onAddBeforeAfterImage: (customerId: string, title: string, before: string, after: string) => void;
   onUpdateCustomer?: (id: string, updatedFields: Partial<Customer>) => void;
+  onDeleteCustomer?: (id: string) => void;
 }
 
 const SUGGESTED_PACKAGES = [
@@ -118,7 +119,8 @@ export default function CustomersView({
   onAddCustomerPackage,
   onUsePackageSession,
   onAddBeforeAfterImage,
-  onUpdateCustomer
+  onUpdateCustomer,
+  onDeleteCustomer
 }: CustomersViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [rankFilter, setRankFilter] = useState<'All' | Customer['rank']>('All');
@@ -486,6 +488,23 @@ export default function CustomersView({
                         title="Chỉnh sửa hồ sơ khách hàng"
                       >
                         <Edit3 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+
+                    {onDeleteCustomer && (
+                      <button
+                        onClick={() => {
+                          if (confirm(`Bạn có chắc muốn xóa khách hàng "${selectedCustomer.name}" khỏi hệ thống?`)) {
+                            const remain = customers.filter(c => c.id !== selectedCustomer.id);
+                            onDeleteCustomer(selectedCustomer.id);
+                            setSelectedCustomerId(remain[0]?.id || null);
+                            alert('Đã xóa khách hàng thành công!');
+                          }
+                        }}
+                        className="p-1 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-slate-100 transition-colors"
+                        title="Xóa hồ sơ khách hàng"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     )}
 

@@ -10,7 +10,9 @@ import {
   Briefcase,
   CheckCircle,
   Plus,
-  X
+  X,
+  Edit3,
+  Trash2
 } from 'lucide-react';
 import { Technician } from '../types';
 
@@ -18,12 +20,16 @@ interface StaffViewProps {
   technicians: Technician[];
   onUpdateTechStatus: (id: string, status: Technician['status']) => void;
   onAddStaff: (staff: Omit<Technician, 'id' | 'completedJobs' | 'rating'>) => void;
+  onUpdateStaff: (id: string, updatedFields: Partial<Technician>) => void;
+  onDeleteStaff: (id: string) => void;
 }
 
 export default function StaffView({
   technicians,
   onUpdateTechStatus,
-  onAddStaff
+  onAddStaff,
+  onUpdateStaff,
+  onDeleteStaff
 }: StaffViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | Technician['status']>('All');
@@ -31,9 +37,21 @@ export default function StaffView({
 
   // Form states for adding new clinician
   const [newName, setNewName] = useState('');
-  const [newRole, setNewRole] = useState('Bác sĩ Da liễu');
+  const [newRole, setNewRole] = useState('Bác sĩ Thẩm mỹ Nội khoa');
   const [newSpecialty, setNewSpecialty] = useState('');
   const [newStatus, setNewStatus] = useState<Technician['status']>('Sẵn sàng');
+  const [newAvatar, setNewAvatar] = useState('');
+
+  // Edit state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingTech, setEditingTech] = useState<Technician | null>(null);
+  
+  // Edit Form states
+  const [editName, setEditName] = useState('');
+  const [editRole, setEditRole] = useState('Bác sĩ Thẩm mỹ Nội khoa');
+  const [editSpecialty, setEditSpecialty] = useState('');
+  const [editStatus, setEditStatus] = useState<Technician['status']>('Sẵn sàng');
+  const [editAvatar, setEditAvatar] = useState('');
 
   // Filter technicians
   const filteredTechs = technicians.filter(tech => {
@@ -46,17 +64,47 @@ export default function StaffView({
     e.preventDefault();
     if (!newName) return;
 
+    // A nice elegant default avatar if none provided
+    const defaultAvatar = 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=600&h=600';
+
     onAddStaff({
       name: newName,
       role: newRole,
       specialty: newSpecialty.split(',').map(s => s.trim()).filter(Boolean),
       status: newStatus,
-      avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAPhGoTjtUutxMviwQA6tzgNLgwC3L905UOgKFihCIpyIjjRu_w3A2ql6Ldgf7SyHmH2W81se759xGRrYJpjrK3C6UrOcp8c4RvueFZ2ZjLiwHRpfzcz7uCaRG9fWRxIod9gR11Git42RpGQGQ-46USAyjgDUUR6WmgnV6PSeks4n5nAiH6qog5J5dpE9EIoZkAXx20kT38-oB2-wU8F9dzoq8SY_4L9fHCpTmv00D79cqTPAexmOHg8A' // default secondary avatar
+      avatar: newAvatar.trim() || defaultAvatar
     });
 
     setShowAddModal(false);
     setNewName('');
     setNewSpecialty('');
+    setNewAvatar('');
+  };
+
+  const handleTriggerEdit = (tech: Technician) => {
+    setEditingTech(tech);
+    setEditName(tech.name);
+    setEditRole(tech.role);
+    setEditSpecialty(tech.specialty.join(', '));
+    setEditStatus(tech.status);
+    setEditAvatar(tech.avatar);
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTech || !editName) return;
+
+    onUpdateStaff(editingTech.id, {
+      name: editName,
+      role: editRole,
+      specialty: editSpecialty.split(',').map(s => s.trim()).filter(Boolean),
+      status: editStatus,
+      avatar: editAvatar.trim() || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=600&h=600'
+    });
+
+    setShowEditModal(false);
+    setEditingTech(null);
   };
 
   return (
@@ -117,9 +165,35 @@ export default function StaffView({
             <div
               id={`tech-card-${tech.id}`}
               key={tech.id}
-              className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300 group"
+              className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300 group relative"
             >
               <div className="space-y-4">
+                {/* Actions */}
+                <div className="absolute top-4 right-4 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                  <button
+                    id={`btn-edit-tech-${tech.id}`}
+                    type="button"
+                    onClick={() => handleTriggerEdit(tech)}
+                    className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-amber-600 rounded-lg border border-slate-200 transition-colors"
+                    title="Chỉnh sửa hồ sơ"
+                  >
+                    <Edit3 className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    id={`btn-delete-tech-${tech.id}`}
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Bạn có chắc muốn xóa hồ sơ của ${tech.name}?`)) {
+                        onDeleteStaff(tech.id);
+                      }
+                    }}
+                    className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-rose-600 rounded-lg border border-slate-200 transition-colors"
+                    title="Xóa hồ sơ"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
                 {/* Header card info */}
                 <div className="flex items-center gap-4">
                   <div className="relative shrink-0">
@@ -262,6 +336,18 @@ export default function StaffView({
                 </select>
               </div>
 
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Ảnh đại diện (URL)</label>
+                <input
+                  id="new-tech-avatar"
+                  type="text"
+                  placeholder="Để trống để sử dụng ảnh mặc định..."
+                  value={newAvatar}
+                  onChange={(e) => setNewAvatar(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-mono"
+                />
+              </div>
+
               <div className="pt-4 flex gap-3 justify-end">
                 <button
                   id="staff-cancel-btn"
@@ -277,6 +363,111 @@ export default function StaffView({
                   className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-sm"
                 >
                   Lưu hồ sơ nhân sự
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Staff Modal */}
+      {showEditModal && editingTech && (
+        <div id="edit-staff-modal-overlay" className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div id="edit-staff-modal-content" className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <span className="font-bold text-slate-900 text-sm">Chỉnh sửa Hồ sơ Bác sĩ / KTV</span>
+              <button onClick={() => { setShowEditModal(false); setEditingTech(null); }} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="p-6 space-y-4 text-xs text-slate-700">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Họ và tên bác sĩ / KTV *</label>
+                <input
+                  id="edit-tech-name"
+                  type="text"
+                  placeholder="E.g. Bác sĩ Lê Văn Long..."
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Chức vụ / Học hàm *</label>
+                <input
+                  id="edit-tech-role"
+                  type="text"
+                  placeholder="E.g. Kỹ thuật viên Trị liệu Thẩm mỹ..."
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Ảnh đại diện (URL)</label>
+                <input
+                  id="edit-tech-avatar"
+                  type="text"
+                  placeholder="URL hình ảnh nhân sự..."
+                  value={editAvatar}
+                  onChange={(e) => setEditAvatar(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-mono"
+                />
+                {editAvatar && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <img src={editAvatar} alt="Preview" className="h-10 w-10 rounded-full object-cover border border-slate-200 shadow-sm" referrerPolicy="no-referrer" />
+                    <span className="text-[10px] text-slate-400">Xem trước ảnh đại diện</span>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Kỹ năng điều trị (Ngăn cách bằng dấu phẩy) *</label>
+                <input
+                  id="edit-tech-specialty"
+                  type="text"
+                  placeholder="E.g. Meso HA, Thermage FLX, Botox thon gọn"
+                  value={editSpecialty}
+                  onChange={(e) => setEditSpecialty(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Trạng thái hiện tại</label>
+                <select
+                  id="edit-tech-status"
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as Technician['status'])}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none"
+                >
+                  <option value="Sẵn sàng">Sẵn sàng</option>
+                  <option value="Đang bận">Đang bận</option>
+                  <option value="Nghỉ phép">Nghỉ phép</option>
+                </select>
+              </div>
+
+              <div className="pt-4 flex gap-3 justify-end">
+                <button
+                  id="edit-staff-cancel-btn"
+                  type="button"
+                  onClick={() => { setShowEditModal(false); setEditingTech(null); }}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
+                >
+                  Hủy
+                </button>
+                <button
+                  id="edit-staff-submit-btn"
+                  type="submit"
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-sm"
+                >
+                  Lưu thay đổi
                 </button>
               </div>
             </form>
