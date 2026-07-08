@@ -1,0 +1,6 @@
+{
+  "name": "Kim Seoul Premium CRM",
+  "description": "Hệ thống quản lý quan hệ khách hàng (CRM) cao cấp dành cho viện thẩm mỹ Kim Seoul Clinic",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
