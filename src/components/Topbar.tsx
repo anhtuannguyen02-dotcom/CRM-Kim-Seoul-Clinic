@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Search, Settings, HelpCircle, ChevronDown, CheckCircle, Clock } from 'lucide-react';
 
+import { ClinicProfile } from '../types';
+
 interface TopbarProps {
   notificationsCount: number;
   clearNotifications: () => void;
+  clinicProfile: ClinicProfile;
 }
 
-export default function Topbar({ notificationsCount, clearNotifications }: TopbarProps) {
+export default function Topbar({ notificationsCount, clearNotifications, clinicProfile }: TopbarProps) {
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -128,13 +131,13 @@ export default function Topbar({ notificationsCount, clearNotifications }: Topba
           >
             <img
               id="topbar-profile-avatar"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuAfRRspgKk3Pu_Ynok-987fQAqFAYzZGSIOZZ_pAlY4MR63jnal_1UCCH6t98jbHGFYdr1XP6R4ccQVfg3cRDKyZKMUw1dPl1MifcAVcNi1jZPEn6FOcgdo5zRS57HQMRl_eG3CNOxcDmmZKg1XHVZY2LLKB7LW6_BQvAHuXY59tTY2IyLWKwnsPxSQTCWFSazH7oNndjYvnvAwxP-U1EeKhy40NFQgZTfdqZ5FORLWNBN2DigU0DbMnA"
-              alt="Manager Phạm Minh Anh"
+              src={clinicProfile.managerAvatar}
+              alt={`Manager ${clinicProfile.managerName}`}
               className="h-9 w-9 rounded-full object-cover border border-amber-200 shadow-sm"
               referrerPolicy="no-referrer"
             />
             <div id="topbar-profile-info" className="hidden md:block">
-              <p className="text-xs font-bold text-slate-800 tracking-tight leading-none">Phạm Minh Anh</p>
+              <p className="text-xs font-bold text-slate-800 tracking-tight leading-none">{clinicProfile.managerName}</p>
               <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider block mt-0.5">Quản lý cơ sở</span>
             </div>
             <ChevronDown className="h-3.5 w-3.5 text-slate-400 hidden md:block" />

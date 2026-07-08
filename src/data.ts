@@ -7,7 +7,65 @@ export const INITIAL_SERVICES: ServiceItem[] = [
   { id: 'srv_4', name: 'Laser Pico Premium trị nám sạm', price: 4200000, durationMin: 45, category: 'Laser điều trị' },
   { id: 'srv_5', name: 'Tắm trắng phi thuyền Hoàng Gia', price: 5500000, durationMin: 75, category: 'Body & Tắm trắng' },
   { id: 'srv_6', name: 'Điện di phục hồi Vitamin C Hàn Quốc', price: 1500000, durationMin: 40, category: 'Chăm sóc cơ bản' },
-  { id: 'srv_7', name: 'Tiêm Botox thon gọn hàm Allergan', price: 12000000, durationMin: 45, category: 'Tiêm thẩm mỹ' }
+  { id: 'srv_7', name: 'Tiêm Botox thon gọn hàm Allergan', price: 12000000, durationMin: 45, category: 'Tiêm thẩm mỹ' },
+
+  // --- MASSAGE CATEGORY ---
+  { id: 'srv_m1', name: 'Massage Body Seoul Heal 60 phút', price: 350000, durationMin: 60, category: 'Massage' },
+  { id: 'srv_m2', name: 'Massage Trị Liệu Seoul VIP', price: 450000, durationMin: 75, category: 'Massage' },
+
+  // --- GỘI ĐẦU CATEGORY ---
+  { id: 'srv_g1', name: 'Gội trải nghiệm', price: 39000, durationMin: 30, category: 'Gội đầu' },
+  { id: 'srv_g2', name: 'Mang dầu đến gội', price: 69000, durationMin: 40, category: 'Gội đầu' },
+  { id: 'srv_g3', name: 'Gội dầu thường', price: 69000, durationMin: 40, category: 'Gội đầu' },
+  { id: 'srv_g4', name: 'Gội dầu cặp', price: 89000, durationMin: 45, category: 'Gội đầu' },
+
+  // --- TRIỆT LÔNG CATEGORY ---
+  { id: 'srv_tl1', name: 'Triệt lông Toàn Thân (Buổi lẻ)', price: 1300000, durationMin: 90, category: 'Triệt lông' },
+  { id: 'srv_tl2', name: 'Triệt lông Nửa Cánh Tay (Buổi lẻ)', price: 180000, durationMin: 25, category: 'Triệt lông' },
+  { id: 'srv_tl3', name: 'Triệt lông Cả Cánh Tay (Buổi lẻ)', price: 300000, durationMin: 35, category: 'Triệt lông' },
+  { id: 'srv_tl4', name: 'Triệt lông Nửa Chân (Buổi lẻ)', price: 280000, durationMin: 30, category: 'Triệt lông' },
+  { id: 'srv_tl5', name: 'Triệt lông Lưng/Gáy (Buổi lẻ)', price: 300000, durationMin: 35, category: 'Triệt lông' },
+  { id: 'srv_tl6', name: 'Triệt lông Ngực (Buổi lẻ)', price: 200000, durationMin: 25, category: 'Triệt lông' },
+  { id: 'srv_tl7', name: 'Triệt lông Bụng (Buổi lẻ)', price: 200000, durationMin: 25, category: 'Triệt lông' },
+  { id: 'srv_tl8', name: 'Triệt lông Mặt (Buổi lẻ)', price: 100000, durationMin: 20, category: 'Triệt lông' },
+  { id: 'srv_tl9', name: 'Triệt lông Nách (Buổi lẻ)', price: 80000, durationMin: 15, category: 'Triệt lông' },
+  { id: 'srv_tl10', name: 'Triệt lông Râu Cằm (Buổi lẻ)', price: 150000, durationMin: 15, category: 'Triệt lông' },
+  { id: 'srv_tl11', name: 'Triệt lông Râu Quai Nón (Buổi lẻ)', price: 300000, durationMin: 20, category: 'Triệt lông' },
+  { id: 'srv_tl12', name: 'Triệt lông Bikini Toàn Bộ (Buổi lẻ)', price: 300000, durationMin: 30, category: 'Triệt lông' },
+
+  // --- BOTOX CATEGORY ---
+  { id: 'srv_bt1', name: 'Botox Xóa Nhăn Trán (Gói Chuyên Viên)', price: 2500000, durationMin: 30, category: 'Botox Hàn Quốc' },
+  { id: 'srv_bt2', name: 'Botox Xóa Nhăn Trán (Gói Bác Sĩ)', price: 3500000, durationMin: 30, category: 'Botox Hàn Quốc' },
+  { id: 'srv_bt3', name: 'Botox Trị Hôi Nách (Gói Chuyên Viên)', price: 3500000, durationMin: 40, category: 'Botox Hàn Quốc' },
+  { id: 'srv_bt4', name: 'Botox Trị Hôi Nách (Gói Bác Sĩ)', price: 4500000, durationMin: 40, category: 'Botox Hàn Quốc' },
+  { id: 'srv_bt5', name: 'Botox Xóa Nhăn Mắt Chân Chim (Gói Chuyên Viên)', price: 2500000, durationMin: 30, category: 'Botox Hàn Quốc' },
+  { id: 'srv_bt6', name: 'Botox Xóa Nhăn Mắt Chân Chim (Gói Bác Sĩ)', price: 3500000, durationMin: 30, category: 'Botox Hàn Quốc' },
+  { id: 'srv_bt7', name: 'Botox Thon Gọn Bắp Tay (Gói Chuyên Viên)', price: 4500000, durationMin: 40, category: 'Botox Hàn Quốc' },
+  { id: 'srv_bt8', name: 'Botox Thon Gọn Bắp Tay (Gói Bác Sĩ)', price: 5500000, durationMin: 40, category: 'Botox Hàn Quốc' },
+  { id: 'srv_bt9', name: 'Botox Thon Gọn Hàm (Gói Chuyên Viên)', price: 2500000, durationMin: 30, category: 'Botox Hàn Quốc' },
+  { id: 'srv_bt10', name: 'Botox Thon Gọn Hàm (Gói Bác Sĩ)', price: 3500000, durationMin: 30, category: 'Botox Hàn Quốc' },
+  { id: 'srv_bt11', name: 'Botox Thon Gọn Vai (Gói Chuyên Viên)', price: 4500000, durationMin: 45, category: 'Botox Hàn Quốc' },
+  { id: 'srv_bt12', name: 'Botox Thon Gọn Vai (Gói Bác Sĩ)', price: 5500000, durationMin: 45, category: 'Botox Hàn Quốc' },
+  { id: 'srv_bt13', name: 'Botox Lifting Toàn Mặt (Gói Chuyên Viên)', price: 4500000, durationMin: 45, category: 'Botox Hàn Quốc' },
+  { id: 'srv_bt14', name: 'Botox Lifting Toàn Mặt (Gói Bác Sĩ)', price: 5500000, durationMin: 45, category: 'Botox Hàn Quốc' },
+
+  // --- FILLER CATEGORY ---
+  { id: 'srv_f1', name: 'Filler Môi 1-2 CC (Gói Chuyên Viên)', price: 3000000, durationMin: 40, category: 'Filler Hàn Quốc' },
+  { id: 'srv_f2', name: 'Filler Môi 1-2 CC (Gói Bác Sĩ)', price: 5000000, durationMin: 40, category: 'Filler Hàn Quốc' },
+  { id: 'srv_f3', name: 'Filler Rãnh Cằm 2-4 CC (Gói Chuyên Viên)', price: 6000000, durationMin: 40, category: 'Filler Hàn Quốc' },
+  { id: 'srv_f4', name: 'Filler Rãnh Cằm 2-4 CC (Gói Bác Sĩ)', price: 8000000, durationMin: 40, category: 'Filler Hàn Quốc' },
+  { id: 'srv_f5', name: 'Filler Má Baby 5-7 CC (Gói Chuyên Viên)', price: 12000000, durationMin: 45, category: 'Filler Hàn Quốc' },
+  { id: 'srv_f6', name: 'Filler Má Baby 5-7 CC (Gói Bác Sĩ)', price: 15250000, durationMin: 45, category: 'Filler Hàn Quốc' },
+  { id: 'srv_f7', name: 'Filler Thái Dương 1-2 CC (Gói Chuyên Viên)', price: 3000000, durationMin: 40, category: 'Filler Hàn Quốc' },
+  { id: 'srv_f8', name: 'Filler Thái Dương 1-2 CC (Gói Bác Sĩ)', price: 4250000, durationMin: 40, category: 'Filler Hàn Quốc' },
+  { id: 'srv_f9', name: 'Filler Rãnh Cười 1-2 CC (Gói Chuyên Viên)', price: 3000000, durationMin: 40, category: 'Filler Hàn Quốc' },
+  { id: 'srv_f10', name: 'Filler Rãnh Cười 1-2 CC (Gói Bác Sĩ)', price: 4750000, durationMin: 40, category: 'Filler Hàn Quốc' },
+  { id: 'srv_f11', name: 'Filler Hốc Mắt 1-2 CC (Gói Chuyên Viên)', price: 3000000, durationMin: 40, category: 'Filler Hàn Quốc' },
+  { id: 'srv_f12', name: 'Filler Hốc Mắt 1-2 CC (Gói Bác Sĩ)', price: 4250000, durationMin: 40, category: 'Filler Hàn Quốc' },
+  { id: 'srv_f13', name: 'Filler Cằm 1-2 CC (Gói Chuyên Viên)', price: 3000000, durationMin: 40, category: 'Filler Hàn Quốc' },
+  { id: 'srv_f14', name: 'Filler Cằm 1-2 CC (Gói Bác Sĩ)', price: 4250000, durationMin: 40, category: 'Filler Hàn Quốc' },
+  { id: 'srv_f15', name: 'Filler Châu Âu (Gói Chuyên Viên)', price: 9000000, durationMin: 50, category: 'Filler Hàn Quốc' },
+  { id: 'srv_f16', name: 'Filler Châu Âu (Gói Bác Sĩ)', price: 12500000, durationMin: 50, category: 'Filler Hàn Quốc' }
 ];
 
 export const INITIAL_TECHNICIANS: Technician[] = [

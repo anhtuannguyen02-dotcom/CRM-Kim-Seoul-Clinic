@@ -10,14 +10,16 @@ import {
   LogOut,
   ChevronRight
 } from 'lucide-react';
+import { ClinicProfile } from '../types';
 
 interface SidebarProps {
   currentTab: string;
   onTabChange: (tab: string) => void;
   onLogout: () => void;
+  clinicProfile: ClinicProfile;
 }
 
-export default function Sidebar({ currentTab, onTabChange, onLogout }: SidebarProps) {
+export default function Sidebar({ currentTab, onTabChange, onLogout, clinicProfile }: SidebarProps) {
   const menuItems = [
     { id: 'dashboard', name: 'Tổng quan', icon: LayoutDashboard },
     { id: 'appointments', name: 'Lịch hẹn', icon: CalendarDays },
@@ -34,13 +36,13 @@ export default function Sidebar({ currentTab, onTabChange, onLogout }: SidebarPr
       <div id="sidebar-brand-header" className="p-6 border-b border-slate-800 flex flex-col items-center justify-center">
         <img 
           id="sidebar-logo-img"
-          src="https://lh3.googleusercontent.com/aida-public/AB6AXuB9lWUDJ3O5naySwCalAe_Vokbm8JC-rAXwCklB42fzS0uaCutuIEMjj8Psb7wPTktg3efiYVXNonj7kBk2-T2Y8_kcl03iTqitJP0B4bZCWAzy5S_0iW-j8csVI3ijVExl2cC74p7qyNgKXAhIhE18R_V9A4WznK6iN69rzwo3isWgXHyuzlr8d7XMfXAnncICex_okKOllYUNq6wXYk0X0WAaxl_SR_tp7v7y3zcJMASpZR8dsLb19U6xd1o80faAiFo" 
-          alt="Kim Seoul Clinic Logo" 
-          className="h-16 w-auto object-contain filter invert-0 brightness-110 mb-2"
+          src={clinicProfile.logoUrl} 
+          alt="Clinic Logo" 
+          className="h-16 w-auto object-contain filter invert-0 brightness-110 mb-2 max-h-[64px]"
           referrerPolicy="no-referrer"
         />
         <div id="sidebar-brand-title" className="text-center">
-          <span className="text-xs uppercase tracking-[0.2em] font-light text-amber-500/80 block">Premium CRM</span>
+          <span className="text-xs uppercase tracking-[0.2em] font-light text-amber-500/80 block line-clamp-1">{clinicProfile.name.split('-')[0].trim()}</span>
           <span className="text-xs text-slate-500 font-mono">Seoul • Vietnam</span>
         </div>
       </div>

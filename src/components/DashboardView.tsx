@@ -14,7 +14,7 @@ import {
   ArrowUpRight,
   Sparkles
 } from 'lucide-react';
-import { Appointment, Technician, CRMTask } from '../types';
+import { Appointment, Technician, CRMTask, ClinicProfile } from '../types';
 import { REVENUE_WEEK_DATA } from '../data';
 
 interface DashboardViewProps {
@@ -34,6 +34,7 @@ interface DashboardViewProps {
   onUpdateAppointmentStatus: (id: string, status: Appointment['status']) => void;
   onCompleteTask: (id: string) => void;
   onNavigate: (tab: string) => void;
+  clinicProfile?: ClinicProfile;
 }
 
 export default function DashboardView({
@@ -43,7 +44,8 @@ export default function DashboardView({
   crmTasks,
   onUpdateAppointmentStatus,
   onCompleteTask,
-  onNavigate
+  onNavigate,
+  clinicProfile
 }: DashboardViewProps) {
   const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
 
@@ -76,7 +78,9 @@ export default function DashboardView({
             <Sparkles className="h-3.5 w-3.5 text-amber-500" />
             <span className="text-[10px] uppercase tracking-wider text-amber-400 font-semibold">Hệ thống Premium CRM v2.1</span>
           </div>
-          <h1 id="greeting-title" className="text-2xl font-bold tracking-tight text-white mb-2">Chào buổi sáng, Anh.</h1>
+          <h1 id="greeting-title" className="text-2xl font-bold tracking-tight text-white mb-2">
+            Chào buổi sáng, {clinicProfile?.managerName || 'Anh'}.
+          </h1>
           <p className="text-xs text-slate-400 leading-relaxed">
             Hôm nay cơ sở có <span className="text-amber-400 font-semibold">{stats.appointmentsToday} lịch hẹn</span> điều trị. Hãy kiểm tra phòng chuẩn bị đón khách VIP Nguyễn Phương Anh lúc 09:30 tại phòng VIP 1.
           </p>
@@ -101,9 +105,9 @@ export default function DashboardView({
         {/* Floating Korean Spa aesthetic illustration placeholder */}
         <div className="absolute right-12 bottom-0 top-0 w-80 hidden xl:flex items-center justify-end">
           <img 
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuBYFpco8GVUNjAdNMEDCeaGaf3GAI8Heo3rxuWTy-fmPBVUKdjS4wSvY7UyXgsYqzdtWHjS7kLMzUObGhLeIz3VVpo52aimkW2CTCDnwH3Or-MS-sc7YFVspgAVPBHboflWr54BitxOub8d_NlfhojZyud-s4Pj3S1cT5Z0tJI5D-525A5WjyNjXDa_9zsZfyBja9onbsjfFM8apk8AdAsEW_QnjhboL2AeT1x8tCursXdY_sTCOWh8rA" 
-            alt="Kim Seoul Clinic" 
-            className="h-32 w-auto object-cover rounded-2xl border border-slate-800/80 shadow-2xl rotate-2 opacity-80"
+            src={clinicProfile?.dashboardImageUrl || "https://lh3.googleusercontent.com/aida-public/AB6AXuBYFpco8GVUNjAdNMEDCeaGaf3GAI8Heo3rxuWTy-fmPBVUKdjS4wSvY7UyXgsYqzdtWHjS7kLMzUObGhLeIz3VVpo52aimkW2CTCDnwH3Or-MS-sc7YFVspgAVPBHboflWr54BitxOub8d_NlfhojZyud-s4Pj3S1cT5Z0tJI5D-525A5WjyNjXDa_9zsZfyBja9onbsjfFM8apk8AdAsEW_QnjhboL2AeT1x8tCursXdY_sTCOWh8rA"} 
+            alt="Clinic Aesthetic View" 
+            className="h-32 w-auto object-cover rounded-2xl border border-slate-800/80 shadow-2xl rotate-2 opacity-80 max-h-[140px]"
             referrerPolicy="no-referrer"
           />
         </div>

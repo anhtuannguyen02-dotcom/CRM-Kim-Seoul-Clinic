@@ -10,26 +10,52 @@ import {
   Plus, 
   DollarSign, 
   Edit3,
-  CheckCircle
+  CheckCircle,
+  X,
+  User,
+  Image as ImageIcon
 } from 'lucide-react';
-import { ServiceItem } from '../types';
+import { ServiceItem, ClinicProfile } from '../types';
 
 interface SettingsViewProps {
   services: ServiceItem[];
-  onUpdateServicePrice: (id: string, price: number) => void;
+  onUpdateService: (id: string, updatedFields: Partial<ServiceItem>) => void;
+  onDeleteService: (id: string) => void;
   onAddService: (service: Omit<ServiceItem, 'id'>) => void;
+  clinicProfile: ClinicProfile;
+  onUpdateClinicProfile: (profile: ClinicProfile) => void;
 }
+
+const SERVICE_CATEGORIES = [
+  'Trẻ hoá da',
+  'Tiêm thẩm mỹ',
+  'Laser điều trị',
+  'Body & Tắm trắng',
+  'Chăm sóc cơ bản',
+  'Massage',
+  'Gội đầu',
+  'Triệt lông',
+  'Botox Hàn Quốc',
+  'Filler Hàn Quốc'
+] as const;
 
 export default function SettingsView({
   services,
-  onUpdateServicePrice,
-  onAddService
+  onUpdateService,
+  onDeleteService,
+  onAddService,
+  clinicProfile,
+  onUpdateClinicProfile
 }: SettingsViewProps) {
-  // Clinic Profile State
-  const [clinicName, setClinicName] = useState('Kim Seoul Clinic - Viện Thẩm Mỹ Hoàng Gia');
-  const [clinicAddress, setClinicAddress] = useState('Số 18, Đường Sương Nguyệt Ánh, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh');
-  const [clinicPhone, setClinicPhone] = useState('1900 888 999');
-  const [clinicHours, setClinicHours] = useState('09:00 - 20:00 (Mỗi ngày)');
+  // Clinic Profile form state
+  const [clinicName, setClinicName] = useState(clinicProfile.name);
+  const [clinicAddress, setClinicAddress] = useState(clinicProfile.address);
+  const [clinicPhone, setClinicPhone] = useState(clinicProfile.phone);
+  const [clinicHours, setClinicHours] = useState(clinicProfile.hours);
+  const [managerName, setManagerName] = useState(clinicProfile.managerName);
+  const [managerAvatar, setManagerAvatar] = useState(clinicProfile.managerAvatar);
+  const [logoUrl, setLogoUrl] = useState(clinicProfile.logoUrl);
+  const [dashboardImageUrl, setDashboardImageUrl] = useState(clinicProfile.dashboardImageUrl);
 
   // New Service form states
   const [newSrvName, setNewSrvName] = useState('');
@@ -37,12 +63,25 @@ export default function SettingsView({
   const [newSrvDuration, setNewSrvDuration] = useState(60);
   const [newSrvCat, setNewSrvCat] = useState<ServiceItem['category']>('Trẻ hoá da');
 
-  // Editing state
-  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
-  const [editingPriceVal, setEditingPriceVal] = useState<number>(0);
+  // Edit Service modal states
+  const [editingService, setEditingService] = useState<ServiceItem | null>(null);
+  const [editSrvName, setEditSrvName] = useState('');
+  const [editSrvPrice, setEditSrvPrice] = useState(0);
+  const [editSrvDuration, setEditSrvDuration] = useState(60);
+  const [editSrvCat, setEditSrvCat] = useState<ServiceItem['category']>('Trẻ hoá da');
 
   const handleSaveClinicProfile = (e: React.FormEvent) => {
     e.preventDefault();
+    onUpdateClinicProfile({
+      name: clinicName,
+      address: clinicAddress,
+      phone: clinicPhone,
+      hours: clinicHours,
+      managerName: managerName,
+      managerAvatar: managerAvatar,
+      logoUrl: logoUrl,
+      dashboardImageUrl: dashboardImageUrl
+    });
     alert('Hồ sơ cơ sở thẩm mỹ đã được đồng bộ hoá thành công!');
   };
 
@@ -63,9 +102,31 @@ export default function SettingsView({
     alert('Dịch vụ mới đã được thêm vào danh mục giá niêm yết!');
   };
 
-  const handleSavePriceEdit = (id: string) => {
-    onUpdateServicePrice(id, editingPriceVal);
-    setEditingServiceId(null);
+  const handleTriggerEdit = (srv: ServiceItem) => {
+    setEditingService(srv);
+    setEditSrvName(srv.name);
+    setEditSrvPrice(srv.price);
+    setEditSrvDuration(srv.durationMin);
+    setEditSrvCat(srv.category);
+  };
+
+  const handleSaveServiceEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingService) return;
+    onUpdateService(editingService.id, {
+      name: editSrvName,
+      price: Number(editSrvPrice),
+      durationMin: Number(editSrvDuration),
+      category: editSrvCat
+    });
+    setEditingService(null);
+    alert('Cập nhật dịch vụ thành công!');
+  };
+
+  const handleDeleteSrvClick = (id: string, name: string) => {
+    if (confirm(`Bạn có chắc muốn xoá dịch vụ "${name}" khỏi danh mục không?`)) {
+      onDeleteService(id);
+    }
   };
 
   // Format currency
@@ -80,64 +141,143 @@ export default function SettingsView({
       <div id="settings-left-column" className="lg:col-span-1 space-y-6">
         <div>
           <h2 id="settings-page-title" className="text-xl font-bold text-slate-800 tracking-tight">Cài đặt Hệ thống</h2>
-          <p className="text-[10px] text-slate-400">Đồng bộ hồ sơ bệnh viện thẩm mỹ & quy chuẩn niêm yết</p>
+          <p className="text-[10px] text-slate-400">Đồng bộ hồ sơ bệnh viện thẩm mỹ, thông tin quản lý & quy chuẩn niêm yết</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
-          <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Thông tin cơ sở thẩm mỹ</span>
+        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-md p-6 space-y-6">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+            <Settings className="h-4 w-4 text-amber-500" />
+            <span className="text-xs font-bold text-slate-850 uppercase tracking-wider block">Thông tin cơ sở thẩm mỹ</span>
+          </div>
           
           <form onSubmit={handleSaveClinicProfile} className="space-y-4">
             <div>
-              <label className="text-[10px] font-semibold text-slate-500 block mb-1">Tên Viện Thẩm Mỹ</label>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Tên Viện Thẩm Mỹ</label>
               <input
                 id="setting-clinic-name"
                 type="text"
                 value={clinicName}
                 onChange={(e) => setClinicName(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white text-slate-800 font-semibold"
+                required
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-semibold text-slate-500 block mb-1">Địa chỉ chi nhánh chính</label>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Địa chỉ chi nhánh chính</label>
               <textarea
                 id="setting-clinic-addr"
                 value={clinicAddress}
                 onChange={(e) => setClinicAddress(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white h-20 resize-none"
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white h-16 resize-none text-slate-800"
+                required
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-[10px] font-semibold text-slate-500 block mb-1">Hotline CSKH</label>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Hotline CSKH</label>
                 <input
                   id="setting-clinic-phone"
                   type="text"
                   value={clinicPhone}
                   onChange={(e) => setClinicPhone(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none font-mono"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none font-mono text-slate-800"
+                  required
                 />
               </div>
               <div>
-                <label className="text-[10px] font-semibold text-slate-500 block mb-1">Giờ mở cửa</label>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Giờ mở cửa</label>
                 <input
                   id="setting-clinic-hours"
                   type="text"
                   value={clinicHours}
                   onChange={(e) => setClinicHours(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none font-mono"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none font-mono text-slate-800"
+                  required
                 />
+              </div>
+            </div>
+
+            <div className="border-t border-slate-100 pt-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <User className="h-3.5 w-3.5 text-amber-500" />
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Thông tin người Quản lý cơ sở</span>
+              </div>
+              
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Họ tên Quản lý *</label>
+                <input
+                  id="setting-manager-name"
+                  type="text"
+                  value={managerName}
+                  onChange={(e) => setManagerName(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white text-slate-800 font-bold"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Ảnh đại diện Quản lý (URL) *</label>
+                <input
+                  id="setting-manager-avatar"
+                  type="text"
+                  value={managerAvatar}
+                  onChange={(e) => setManagerAvatar(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none font-mono text-slate-700 bg-slate-50 text-[10px]"
+                  required
+                />
+                <div className="mt-1.5 flex items-center gap-2">
+                  <img src={managerAvatar} alt="preview manager" className="h-8 w-8 rounded-full object-cover border border-slate-200" referrerPolicy="no-referrer" />
+                  <span className="text-[10px] text-slate-400">Hình ảnh minh họa quản lý</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-100 pt-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="h-3.5 w-3.5 text-amber-500" />
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Hình ảnh nhận diện thương hiệu (URLs)</span>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Logo Viện Thẩm Mỹ (URL) *</label>
+                <input
+                  id="setting-logo-url"
+                  type="text"
+                  value={logoUrl}
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none font-mono text-slate-700 bg-slate-50 text-[10px]"
+                  required
+                />
+                <div className="mt-1.5 p-2 bg-slate-900 rounded-lg inline-block">
+                  <img src={logoUrl} alt="preview logo" className="h-8 w-auto object-contain max-w-[120px]" referrerPolicy="no-referrer" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Ảnh Banner Trang Chủ (URL) *</label>
+                <input
+                  id="setting-dashboard-img"
+                  type="text"
+                  value={dashboardImageUrl}
+                  onChange={(e) => setDashboardImageUrl(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none font-mono text-slate-700 bg-slate-50 text-[10px]"
+                  required
+                />
+                <div className="mt-1.5">
+                  <img src={dashboardImageUrl} alt="preview banner" className="h-16 w-full object-cover rounded-xl border border-slate-200" referrerPolicy="no-referrer" />
+                </div>
               </div>
             </div>
 
             <button
               id="btn-save-profile"
               type="submit"
-              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all"
+              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all mt-4"
             >
               <Save className="h-4 w-4" />
-              <span>Đồng bộ thông tin</span>
+              <span>Đồng bộ tất cả thông tin</span>
             </button>
           </form>
         </div>
@@ -147,19 +287,24 @@ export default function SettingsView({
       <div id="settings-right-columns" className="lg:col-span-2 space-y-6">
         {/* Service Price Catalog List */}
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-md p-6 space-y-6">
-          <div>
-            <h3 className="text-sm font-bold text-slate-800">Danh mục Dịch vụ & Giá niêm yết</h3>
-            <p className="text-[10px] text-slate-400 mt-0.5">Giá tiền trực tiếp tính vào hóa đơn của lịch hẹn và combo liệu trình.</p>
+          <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-800">Danh mục Dịch vụ & Giá niêm yết</h3>
+              <p className="text-[10px] text-slate-400 mt-0.5">Tất cả tên dịch vụ, phân nhóm, thời lượng và đơn giá đều có thể chỉnh sửa.</p>
+            </div>
+            <span className="bg-amber-500/10 text-amber-700 font-bold px-2.5 py-1 rounded-full text-[10px]">
+              {services.length} Dịch vụ
+            </span>
           </div>
 
           <div className="overflow-x-auto">
             <table id="services-settings-table" className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-100 text-[9px] font-bold text-slate-400 uppercase tracking-wider pb-2">
-                  <th className="pb-3">Tên Dịch vụ</th>
-                  <th className="pb-3">Phân nhóm</th>
-                  <th className="pb-3">Thời lượng</th>
-                  <th className="pb-3">Đơn giá niêm yết</th>
+                  <th className="pb-3 w-[40%]">Tên Dịch vụ</th>
+                  <th className="pb-3 w-[25%]">Phân nhóm</th>
+                  <th className="pb-3 w-[15%]">Thời lượng</th>
+                  <th className="pb-3 w-[20%]">Đơn giá niêm yết</th>
                   <th className="pb-3 text-right">Điều chỉnh</th>
                 </tr>
               </thead>
@@ -168,60 +313,33 @@ export default function SettingsView({
                   <tr id={`srv-row-${srv.id}`} key={srv.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="py-3 font-semibold text-slate-900">{srv.name}</td>
                     <td className="py-3">
-                      <span className="px-2 py-0.5 bg-slate-100 rounded text-[9px] font-bold text-slate-500">
+                      <span className="px-2 py-0.5 bg-amber-500/10 rounded text-[9px] font-bold text-amber-800">
                         {srv.category}
                       </span>
                     </td>
                     <td className="py-3 font-mono text-slate-500 font-semibold">{srv.durationMin} phút</td>
-                    <td className="py-3">
-                      {editingServiceId === srv.id ? (
-                        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            id={`input-edit-price-${srv.id}`}
-                            type="number"
-                            value={editingPriceVal}
-                            onChange={(e) => setEditingPriceVal(Number(e.target.value))}
-                            className="w-24 px-2 py-1 border border-slate-300 rounded font-mono font-bold text-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
-                          />
-                          <span className="text-[10px] text-slate-400 font-bold">đ</span>
-                        </div>
-                      ) : (
-                        <span className="font-bold text-amber-600 font-mono">
-                          {formatVND(srv.price)}
-                        </span>
-                      )}
+                    <td className="py-3 font-bold text-slate-800 font-mono">
+                      {formatVND(srv.price)}
                     </td>
                     <td className="py-3 text-right">
-                      {editingServiceId === srv.id ? (
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            id={`btn-save-price-${srv.id}`}
-                            onClick={() => handleSavePriceEdit(srv.id)}
-                            className="px-2 py-1 bg-emerald-500 text-white font-bold text-[9px] rounded hover:bg-emerald-600"
-                          >
-                            Lưu
-                          </button>
-                          <button
-                            id={`btn-cancel-price-${srv.id}`}
-                            onClick={() => setEditingServiceId(null)}
-                            className="px-2 py-1 bg-slate-100 text-slate-500 font-bold text-[9px] rounded hover:bg-slate-200"
-                          >
-                            Hủy
-                          </button>
-                        </div>
-                      ) : (
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           id={`btn-trigger-edit-${srv.id}`}
-                          onClick={() => {
-                            setEditingServiceId(srv.id);
-                            setEditingPriceVal(srv.price);
-                          }}
-                          className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-colors inline-flex items-center"
-                          title="Sửa giá bán"
+                          onClick={() => handleTriggerEdit(srv)}
+                          className="p-1.5 hover:bg-slate-100 rounded text-amber-600 hover:text-amber-700 transition-colors inline-flex items-center"
+                          title="Sửa toàn bộ dịch vụ"
                         >
                           <Edit3 className="h-3.5 w-3.5" />
                         </button>
-                      )}
+                        <button
+                          id={`btn-delete-${srv.id}`}
+                          onClick={() => handleDeleteSrvClick(srv.id, srv.name)}
+                          className="p-1.5 hover:bg-rose-50 rounded text-rose-500 hover:text-rose-700 transition-colors inline-flex items-center"
+                          title="Xóa dịch vụ"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -254,13 +372,11 @@ export default function SettingsView({
                 id="new-srv-cat"
                 value={newSrvCat}
                 onChange={(e) => setNewSrvCat(e.target.value as ServiceItem['category'])}
-                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none"
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none font-medium"
               >
-                <option value="Trẻ hoá da">Trẻ hoá da</option>
-                <option value="Tiêm thẩm mỹ">Tiêm thẩm mỹ</option>
-                <option value="Laser điều trị">Laser điều trị</option>
-                <option value="Body & Tắm trắng">Body & Tắm trắng</option>
-                <option value="Chăm sóc cơ bản">Chăm sóc cơ bản</option>
+                {SERVICE_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
               </select>
             </div>
 
@@ -301,6 +417,85 @@ export default function SettingsView({
           </form>
         </div>
       </div>
+
+      {/* Edit Service Modal */}
+      {editingService && (
+        <div id="edit-service-modal-overlay" className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div id="edit-service-modal-content" className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <span className="font-bold text-slate-900 text-sm">Chỉnh sửa dịch vụ niêm yết</span>
+              <button onClick={() => setEditingService(null)} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveServiceEdit} className="p-6 space-y-4">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Tên Dịch vụ Thẩm mỹ *</label>
+                <input
+                  type="text"
+                  value={editSrvName}
+                  onChange={(e) => setEditSrvName(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white text-slate-800 font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Phân nhóm (Danh mục) *</label>
+                <select
+                  value={editSrvCat}
+                  onChange={(e) => setEditSrvCat(e.target.value as ServiceItem['category'])}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none font-medium"
+                >
+                  {SERVICE_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Thời lượng (Phút) *</label>
+                  <input
+                    type="number"
+                    value={editSrvDuration}
+                    onChange={(e) => setEditSrvDuration(Number(e.target.value))}
+                    required
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none font-mono font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Đơn giá niêm yết (đ) *</label>
+                  <input
+                    type="number"
+                    value={editSrvPrice}
+                    onChange={(e) => setEditSrvPrice(Number(e.target.value))}
+                    required
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setEditingService(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-xl shadow-sm"
+                >
+                  Lưu thay đổi
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

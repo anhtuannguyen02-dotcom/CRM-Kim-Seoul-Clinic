@@ -5,7 +5,8 @@ import {
   Technician, 
   CRMTask, 
   Promotion, 
-  ServiceItem 
+  ServiceItem,
+  ClinicProfile 
 } from './types';
 import { 
   INITIAL_SERVICES, 
@@ -28,6 +29,7 @@ import StaffView from './components/StaffView';
 import SettingsView from './components/SettingsView';
 
 import { Sparkles, Key, UserCheck, ShieldAlert, Clock } from 'lucide-react';
+import { motion } from 'motion/react';
 
 export default function App() {
   // Login State
@@ -36,13 +38,47 @@ export default function App() {
     return saved === 'true';
   });
 
-  const [username, setUsername] = useState('Phạm Minh Anh');
+  // Clinic Profile State
+  const [clinicProfile, setClinicProfile] = useState<ClinicProfile>(() => {
+    const saved = localStorage.getItem('kimseoul_clinic_profile');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return {
+      name: 'Kim Seoul Clinic - Viện Thẩm Mỹ Hoàng Gia',
+      address: 'Số 18, Đường Sương Nguyệt Ánh, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh',
+      phone: '1900 888 999',
+      hours: '09:00 - 20:00 (Mỗi ngày)',
+      managerName: 'Đoàn Thị Huyền Trang',
+      managerAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAfRRspgKk3Pu_Ynok-987fQAqFAYzZGSIOZZ_pAlY4MR63jnal_1UCCH6t98jbHGFYdr1XP6R4ccQVfg3cRDKyZKMUw1dPl1MifcAVcNi1jZPEn6FOcgdo5zRS57HQMRl_eG3CNOxcDmmZKg1XHVZY2LLKB7LW6_BQvAHuXY59tTY2IyLWKwnsPxSQTCWFSazH7oNndjYvnvAwxP-U1EeKhy40NFQgZTfdqZ5FORLWNBN2DigU0DbMnA',
+      logoUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB9lWUDJ3O5naySwCalAe_Vokbm8JC-rAXwCklB42fzS0uaCutuIEMjj8Psb7wPTktg3efiYVXNonj7kBk2-T2Y8_kcl03iTqitJP0B4bZCWAzy5S_0iW-j8csVI3ijVExl2cC74p7qyNgKXAhIhE18R_V9A4WznK6iN69rzwo3isWgXHyuzlr8d7XMfXAnncICex_okKOllYUNq6wXYk0X0WAaxl_SR_tp7v7y3zcJMASpZR8dsLb19U6xd1o80faAiFo',
+      dashboardImageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBYFpco8GVUNjAdNMEDCeaGaf3GAI8Heo3rxuWTy-fmPBVUKdjS4wSvY7UyXgsYqzdtWHjS7kLMzUObGhLeIz3VVpo52aimkW2CTCDnwH3Or-MS-sc7YFVspgAVPBHboflWr54BitxOub8d_NlfhojZyud-s4Pj3S1cT5Z0tJI5D-525A5WjyNjXDa_9zsZfyBja9onbsjfFM8apk8AdAsEW_QnjhboL2AeT1x8tCursXdY_sTCOWh8rA'
+    };
+  });
+
+  const [username, setUsername] = useState(() => {
+    const saved = localStorage.getItem('kimseoul_clinic_profile');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.managerName) return parsed.managerName;
+      } catch (e) {}
+    }
+    return 'Đoàn Thị Huyền Trang';
+  });
   const [password, setPassword] = useState('••••••••');
   const [loginError, setLoginError] = useState('');
 
   // Main UI States
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [notificationsCount, setNotificationsCount] = useState<number>(3);
+
+  // Sync clinic profile to localStorage
+  useEffect(() => {
+    localStorage.setItem('kimseoul_clinic_profile', JSON.stringify(clinicProfile));
+  }, [clinicProfile]);
 
   // Core Data States (load from localStorage or default to initial data)
   const [services, setServices] = useState<ServiceItem[]>(() => {
@@ -251,6 +287,87 @@ export default function App() {
     }));
   };
 
+  // Add package to customer
+  const handleAddCustomerPackage = (customerId: string, packageName: string, totalSessions: number, price: number) => {
+    setCustomers(customers.map(c => {
+      if (c.id === customerId) {
+        const activePackages = c.activePackages || [];
+        return {
+          ...c,
+          totalSpent: c.totalSpent + price,
+          activePackages: [
+            ...activePackages,
+            {
+              packageName,
+              totalSessions,
+              usedSessions: 0
+            }
+          ]
+        };
+      }
+      return c;
+    }));
+
+    // Update stats with package price
+    setStats(prev => ({
+      ...prev,
+      revenue: prev.revenue + price
+    }));
+  };
+
+  // Use a session from customer's package
+  const handleUsePackageSession = (customerId: string, packageName: string, note: string, technician: string) => {
+    setCustomers(customers.map(c => {
+      if (c.id === customerId) {
+        const activePackages = (c.activePackages || []).map(pkg => {
+          if (pkg.packageName === packageName) {
+            return {
+              ...pkg,
+              usedSessions: Math.min(pkg.totalSessions, pkg.usedSessions + 1)
+            };
+          }
+          return pkg;
+        });
+
+        const treatmentHistory = c.treatmentHistory || [];
+        return {
+          ...c,
+          totalVisits: c.totalVisits + 1,
+          activePackages,
+          treatmentHistory: [
+            {
+              id: `th_${Date.now()}`,
+              date: new Date().toLocaleDateString('vi-VN'),
+              serviceName: `Trừ buổi: ${packageName}`,
+              technician,
+              note,
+              status: 'Hoàn thành' as const
+            },
+            ...treatmentHistory
+          ]
+        };
+      }
+      return c;
+    }));
+  };
+
+  // Add Before After clinical photo
+  const handleAddBeforeAfterImage = (customerId: string, title: string, before: string, after: string) => {
+    setCustomers(customers.map(c => {
+      if (c.id === customerId) {
+        const beforeAfterImages = c.beforeAfterImages || [];
+        return {
+          ...c,
+          beforeAfterImages: [
+            ...beforeAfterImages,
+            { title, before, after }
+          ]
+        };
+      }
+      return c;
+    }));
+  };
+
   // Add Promotion Voucher
   const handleAddPromotion = (newPromo: Omit<Promotion, 'id' | 'usageCount'>) => {
     const promo: Promotion = {
@@ -301,13 +418,28 @@ export default function App() {
     setServices([...services, srv]);
   };
 
-  // Update Service Price
-  const handleUpdateServicePrice = (id: string, price: number) => {
+  // Update Service
+  const handleUpdateService = (id: string, updatedFields: Partial<ServiceItem>) => {
     setServices(services.map(s => {
       if (s.id === id) {
-        return { ...s, price };
+        return { ...s, ...updatedFields };
       }
       return s;
+    }));
+  };
+
+  // Delete Service
+  const handleDeleteService = (id: string) => {
+    setServices(services.filter(s => s.id !== id));
+  };
+
+  // Update Customer Details
+  const handleUpdateCustomer = (id: string, updatedFields: Partial<Customer>) => {
+    setCustomers(customers.map(c => {
+      if (c.id === id) {
+        return { ...c, ...updatedFields };
+      }
+      return c;
     }));
   };
 
@@ -324,6 +456,7 @@ export default function App() {
             onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
             onCompleteTask={handleCompleteTask}
             onNavigate={setCurrentTab}
+            clinicProfile={clinicProfile}
           />
         );
       case 'appointments':
@@ -341,8 +474,13 @@ export default function App() {
         return (
           <CustomersView
             customers={customers}
+            services={services}
             onAddCustomer={handleAddCustomer}
             onAddTreatmentNote={handleAddCustomerTreatmentNote}
+            onAddCustomerPackage={handleAddCustomerPackage}
+            onUsePackageSession={handleUsePackageSession}
+            onAddBeforeAfterImage={handleAddBeforeAfterImage}
+            onUpdateCustomer={handleUpdateCustomer}
           />
         );
       case 'care':
@@ -373,8 +511,11 @@ export default function App() {
         return (
           <SettingsView
             services={services}
-            onUpdateServicePrice={handleUpdateServicePrice}
+            onUpdateService={handleUpdateService}
+            onDeleteService={handleDeleteService}
             onAddService={handleAddService}
+            clinicProfile={clinicProfile}
+            onUpdateClinicProfile={setClinicProfile}
           />
         );
       default:
@@ -393,8 +534,11 @@ export default function App() {
         }}
       >
         <div className="absolute top-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none">
-          <img 
+          <motion.img 
             id="login-bg-logo"
+            initial={{ opacity: 0, scale: 0.96, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
             src="https://lh3.googleusercontent.com/aida-public/AB6AXuB9lWUDJ3O5naySwCalAe_Vokbm8JC-rAXwCklB42fzS0uaCutuIEMjj8Psb7wPTktg3efiYVXNonj7kBk2-T2Y8_kcl03iTqitJP0B4bZCWAzy5S_0iW-j8csVI3ijVExl2cC74p7qyNgKXAhIhE18R_V9A4WznK6iN69rzwo3isWgXHyuzlr8d7XMfXAnncICex_okKOllYUNq6wXYk0X0WAaxl_SR_tp7v7y3zcJMASpZR8dsLb19U6xd1o80faAiFo" 
             alt="Kim Seoul Clinic Header Logo" 
             className="h-20 w-auto object-contain filter invert-0 brightness-125 drop-shadow-lg"
@@ -471,6 +615,7 @@ export default function App() {
         currentTab={currentTab} 
         onTabChange={setCurrentTab} 
         onLogout={handleLogout} 
+        clinicProfile={clinicProfile}
       />
 
       {/* Main Workspace */}
@@ -480,6 +625,7 @@ export default function App() {
         <Topbar 
           notificationsCount={notificationsCount} 
           clearNotifications={clearNotifications} 
+          clinicProfile={clinicProfile}
         />
 
         {/* Content canvas container */}

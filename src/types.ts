@@ -92,5 +92,17 @@ export interface ServiceItem {
   name: string;
   price: number;
   durationMin: number;
-  category: 'Trẻ hoá da' | 'Tiêm thẩm mỹ' | 'Laser điều trị' | 'Body & Tắm trắng' | 'Chăm sóc cơ bản';
+  category: 'Trẻ hoá da' | 'Tiêm thẩm mỹ' | 'Laser điều trị' | 'Body & Tắm trắng' | 'Chăm sóc cơ bản' | 'Massage' | 'Gội đầu' | 'Triệt lông' | 'Botox Hàn Quốc' | 'Filler Hàn Quốc';
 }
+
+export interface ClinicProfile {
+  name: string;
+  address: string;
+  phone: string;
+  hours: string;
+  managerName: string;
+  managerAvatar: string;
+  logoUrl: string;
+  dashboardImageUrl: string;
+}
+
