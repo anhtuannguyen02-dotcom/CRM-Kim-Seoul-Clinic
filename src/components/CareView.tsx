@@ -13,9 +13,11 @@ import {
   Plus,
   X,
   Edit3,
-  Trash2
+  Trash2,
+  Download
 } from 'lucide-react';
 import { CRMTask, Customer } from '../types';
+import { exportToExcel } from '../utils/exportToExcel';
 
 interface CareViewProps {
   crmTasks: CRMTask[];
@@ -149,16 +151,33 @@ export default function CareView({
       <div id="care-left-columns" className="lg:col-span-2 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <h2 id="care-page-title" className="text-xl font-bold text-slate-800">Chăm sóc Khách hàng</h2>
-              {onAddTask && (
+              <div className="flex items-center gap-1.5">
                 <button
-                  onClick={() => setShowAddModal(true)}
-                  className="px-2.5 py-1 bg-slate-950 hover:bg-slate-850 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all"
+                  id="btn-export-care-excel"
+                  onClick={() => {
+                    exportToExcel(
+                      filteredTasks,
+                      ['Mã Nhiệm vụ', 'Khách hàng', 'Số điện thoại', 'Loại chăm sóc', 'Liên quan Dịch vụ', 'Nội dung dặn dò', 'Ngày cần gọi', 'Trạng thái'],
+                      ['id', 'customerName', 'customerPhone', 'type', 'serviceName', 'description', 'dueDate', 'status'],
+                      'Danh_sach_Cham_soc_Khach_hang'
+                    );
+                  }}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all"
+                  title="Xuất danh sách chăm sóc ra Excel"
                 >
-                  <Plus className="h-3 w-3 text-amber-500" /> Thêm việc
+                  <Download className="h-3 w-3 text-emerald-100" /> Xuất Excel
                 </button>
-              )}
+                {onAddTask && (
+                  <button
+                    onClick={() => setShowAddModal(true)}
+                    className="px-2.5 py-1 bg-slate-950 hover:bg-slate-850 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all"
+                  >
+                    <Plus className="h-3 w-3 text-amber-500" /> Thêm việc
+                  </button>
+                )}
+              </div>
             </div>
             <p className="text-[10px] text-slate-400">Điều phối các chiến dịch tri ân, dặn dò hồi phục sau liệu trình</p>
           </div>

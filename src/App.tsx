@@ -752,6 +752,10 @@ export default function App() {
             onAddService={handleAddService}
             clinicProfile={clinicProfile}
             onUpdateClinicProfile={setClinicProfile}
+            customers={customers}
+            appointments={appointments}
+            crmTasks={crmTasks}
+            technicians={technicians}
           />
         );
       default:

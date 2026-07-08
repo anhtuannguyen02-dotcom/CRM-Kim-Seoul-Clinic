@@ -13,9 +13,11 @@ import {
   CheckCircle,
   X,
   User,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Download
 } from 'lucide-react';
-import { ServiceItem, ClinicProfile } from '../types';
+import { ServiceItem, ClinicProfile, Customer, Appointment, CRMTask, Technician } from '../types';
+import { exportToExcel } from '../utils/exportToExcel';
 
 interface SettingsViewProps {
   services: ServiceItem[];
@@ -24,6 +26,10 @@ interface SettingsViewProps {
   onAddService: (service: Omit<ServiceItem, 'id'>) => void;
   clinicProfile: ClinicProfile;
   onUpdateClinicProfile: (profile: ClinicProfile) => void;
+  customers?: Customer[];
+  appointments?: Appointment[];
+  crmTasks?: CRMTask[];
+  technicians?: Technician[];
 }
 
 const SERVICE_CATEGORIES = [
@@ -45,7 +51,11 @@ export default function SettingsView({
   onDeleteService,
   onAddService,
   clinicProfile,
-  onUpdateClinicProfile
+  onUpdateClinicProfile,
+  customers = [],
+  appointments = [],
+  crmTasks = [],
+  technicians = []
 }: SettingsViewProps) {
   // Clinic Profile form state
   const [clinicName, setClinicName] = useState(clinicProfile.name);
@@ -280,6 +290,130 @@ export default function SettingsView({
               <span>Đồng bộ tất cả thông tin</span>
             </button>
           </form>
+        </div>
+
+        {/* Central Backup & Export Dashboard */}
+        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-md p-6 space-y-4">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+            <Download className="h-4 w-4 text-emerald-600" />
+            <span className="text-xs font-bold text-slate-850 uppercase tracking-wider block">Trung tâm Xuất Excel & Sao lưu</span>
+          </div>
+          
+          <p className="text-[10px] text-slate-400">
+            Xuất dữ liệu hệ thống ra file Excel (.csv tiêu chuẩn hỗ trợ tiếng Việt có dấu) để lưu trữ ngoại tuyến hoặc báo cáo nội bộ.
+          </p>
+
+          <div className="grid grid-cols-1 gap-2.5">
+            <button
+              id="btn-settings-export-customers"
+              type="button"
+              onClick={() => {
+                exportToExcel(
+                  customers,
+                  ['Mã Khách hàng', 'Họ và tên', 'Số điện thoại', 'Tuổi', 'Giới tính', 'Hạng thành viên', 'Tổng chi tiêu (VND)', 'Số lần điều trị', 'Ghi chú'],
+                  ['id', 'name', 'phone', 'age', 'gender', 'rank', 'totalSpent', 'totalVisits', 'notes'],
+                  'Sao_luu_Khach_hang'
+                );
+              }}
+              className="w-full py-2 px-3 hover:bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-left transition-all font-semibold text-slate-700"
+            >
+              <span className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                <span>Danh bạ Khách hàng</span>
+              </span>
+              <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded-full text-slate-500">
+                {customers.length} dòng <Download className="h-3 w-3 text-emerald-600" />
+              </span>
+            </button>
+
+            <button
+              id="btn-settings-export-appointments"
+              type="button"
+              onClick={() => {
+                exportToExcel(
+                  appointments,
+                  ['Mã Lịch hẹn', 'Khách hàng', 'Số điện thoại', 'Dịch vụ điều trị', 'Đơn giá (VND)', 'Bác sĩ/Kỹ thuật viên', 'Ngày hẹn', 'Giờ hẹn', 'Trạng thái', 'Ghi chú'],
+                  ['id', 'customerName', 'customerPhone', 'serviceName', 'price', 'technicianName', 'date', 'time', 'status', 'notes'],
+                  'Sao_luu_Lich_hen'
+                );
+              }}
+              className="w-full py-2 px-3 hover:bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-left transition-all font-semibold text-slate-700"
+            >
+              <span className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-sky-500"></span>
+                <span>Lịch hẹn Thẩm mỹ</span>
+              </span>
+              <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded-full text-slate-500">
+                {appointments.length} dòng <Download className="h-3 w-3 text-emerald-600" />
+              </span>
+            </button>
+
+            <button
+              id="btn-settings-export-care"
+              type="button"
+              onClick={() => {
+                exportToExcel(
+                  crmTasks,
+                  ['Mã Nhiệm vụ', 'Khách hàng', 'Số điện thoại', 'Loại chăm sóc', 'Liên quan Dịch vụ', 'Nội dung dặn dò', 'Ngày cần gọi', 'Trạng thái'],
+                  ['id', 'customerName', 'customerPhone', 'type', 'serviceName', 'description', 'dueDate', 'status'],
+                  'Sao_luu_Nhiem_vu_Cham_soc'
+                );
+              }}
+              className="w-full py-2 px-3 hover:bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-left transition-all font-semibold text-slate-700"
+            >
+              <span className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-pink-500"></span>
+                <span>Nhiệm vụ Chăm sóc (CRM)</span>
+              </span>
+              <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded-full text-slate-500">
+                {crmTasks.length} dòng <Download className="h-3 w-3 text-emerald-600" />
+              </span>
+            </button>
+
+            <button
+              id="btn-settings-export-staff"
+              type="button"
+              onClick={() => {
+                exportToExcel(
+                  technicians,
+                  ['Mã Nhân viên', 'Họ và tên', 'Chức danh', 'Chuyên khoa/Kỹ năng', 'Số ca phục vụ', 'Đánh giá (Sao)', 'Trạng thái hoạt động'],
+                  ['id', 'name', 'role', 'specialty', 'completedJobs', 'rating', 'status'],
+                  'Sao_luu_Nhan_su'
+                );
+              }}
+              className="w-full py-2 px-3 hover:bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-left transition-all font-semibold text-slate-700"
+            >
+              <span className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+                <span>Đội ngũ Nhân sự & Bác sĩ</span>
+              </span>
+              <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded-full text-slate-500">
+                {technicians.length} dòng <Download className="h-3 w-3 text-emerald-600" />
+              </span>
+            </button>
+
+            <button
+              id="btn-settings-export-services"
+              type="button"
+              onClick={() => {
+                exportToExcel(
+                  services,
+                  ['Mã Dịch vụ', 'Tên Dịch vụ', 'Phân nhóm', 'Thời lượng (Phút)', 'Đơn giá niêm yết (VND)'],
+                  ['id', 'name', 'category', 'durationMin', 'price'],
+                  'Sao_luu_Danh_muc_Gia_dich_vu'
+                );
+              }}
+              className="w-full py-2 px-3 hover:bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-left transition-all font-semibold text-slate-700"
+            >
+              <span className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-violet-500"></span>
+                <span>Danh mục Dịch vụ & Giá niêm yết</span>
+              </span>
+              <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded-full text-slate-500">
+                {services.length} dòng <Download className="h-3 w-3 text-emerald-600" />
+              </span>
+            </button>
+          </div>
         </div>
       </div>
 

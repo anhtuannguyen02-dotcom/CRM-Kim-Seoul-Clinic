@@ -12,9 +12,11 @@ import {
   Plus,
   X,
   Edit3,
-  Trash2
+  Trash2,
+  Download
 } from 'lucide-react';
 import { Technician } from '../types';
+import { exportToExcel } from '../utils/exportToExcel';
 
 interface StaffViewProps {
   technicians: Technician[];
@@ -116,14 +118,32 @@ export default function StaffView({
           <h2 id="staff-page-title" className="text-xl font-bold text-slate-800 tracking-tight">Điều phối Nhân sự & Clinicians</h2>
           <p className="text-[10px] text-slate-400">Điều phối ca kíp, trạng thái hoạt động bác sĩ chuyên khoa và kỹ thuật viên</p>
         </div>
-        <button
-          id="btn-add-staff-modal"
-          onClick={() => setShowAddModal(true)}
-          className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-sm transition-all"
-        >
-          <Plus className="h-4 w-4 text-amber-500" />
-          <span>Thêm bác sĩ/KTV mới</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            id="btn-export-staff-excel"
+            onClick={() => {
+              exportToExcel(
+                filteredTechs,
+                ['Mã Nhân viên', 'Họ và tên', 'Chức danh', 'Chuyên khoa/Kỹ năng', 'Số ca phục vụ', 'Đánh giá (Sao)', 'Trạng thái hoạt động'],
+                ['id', 'name', 'role', 'specialty', 'completedJobs', 'rating', 'status'],
+                'Danh_sach_Nhan_su'
+              );
+            }}
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-sm transition-all hover:scale-[1.01]"
+            title="Xuất danh sách nhân sự ra Excel"
+          >
+            <Download className="h-4 w-4 text-emerald-100" />
+            <span>Xuất Excel</span>
+          </button>
+          <button
+            id="btn-add-staff-modal"
+            onClick={() => setShowAddModal(true)}
+            className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-sm transition-all"
+          >
+            <Plus className="h-4 w-4 text-amber-500" />
+            <span>Thêm bác sĩ/KTV mới</span>
+          </button>
+        </div>
       </div>
 
       {/* Controls Bar */}

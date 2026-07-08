@@ -14,9 +14,11 @@ import {
   ChevronLeft,
   Users,
   Edit3,
-  Trash2
+  Trash2,
+  Download
 } from 'lucide-react';
 import { Appointment, Customer, ServiceItem, Technician } from '../types';
+import { exportToExcel } from '../utils/exportToExcel';
 
 interface AppointmentsViewProps {
   appointments: Appointment[];
@@ -204,14 +206,32 @@ export default function AppointmentsView({
           <h2 id="appt-page-title" className="text-xl font-bold text-slate-800 tracking-tight">Quản lý Lịch hẹn</h2>
           <p className="text-[10px] text-slate-400">Điều phối, sắp xếp và theo dõi trạng thái các ca liệu trình thẩm mỹ</p>
         </div>
-        <button
-          id="btn-trigger-booking-modal"
-          onClick={() => setShowBookingModal(true)}
-          className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-sm transition-all hover:scale-[1.01]"
-        >
-          <Plus className="h-4 w-4 text-amber-500" />
-          <span>Tạo lịch hẹn mới</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            id="btn-export-appointments-excel"
+            onClick={() => {
+              exportToExcel(
+                filteredAppointments,
+                ['Mã Lịch hẹn', 'Khách hàng', 'Số điện thoại', 'Dịch vụ điều trị', 'Đơn giá (VND)', 'Bác sĩ/Kỹ thuật viên', 'Ngày hẹn', 'Giờ hẹn', 'Trạng thái', 'Ghi chú'],
+                ['id', 'customerName', 'customerPhone', 'serviceName', 'price', 'technicianName', 'date', 'time', 'status', 'notes'],
+                'Danh_sach_Lich_hen'
+              );
+            }}
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-sm transition-all hover:scale-[1.01]"
+            title="Xuất danh sách đang hiển thị ra file Excel"
+          >
+            <Download className="h-4 w-4 text-emerald-100" />
+            <span>Xuất Excel</span>
+          </button>
+          <button
+            id="btn-trigger-booking-modal"
+            onClick={() => setShowBookingModal(true)}
+            className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-sm transition-all hover:scale-[1.01]"
+          >
+            <Plus className="h-4 w-4 text-amber-500" />
+            <span>Tạo lịch hẹn mới</span>
+          </button>
+        </div>
       </div>
 
       {/* Searching & Filter Tabs */}

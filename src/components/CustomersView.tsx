@@ -16,9 +16,11 @@ import {
   Briefcase,
   X,
   Edit3,
-  Trash2
+  Trash2,
+  Download
 } from 'lucide-react';
 import { Customer, ServiceItem, Technician } from '../types';
+import { exportToExcel } from '../utils/exportToExcel';
 
 interface CustomersViewProps {
   customers: Customer[];
@@ -392,14 +394,31 @@ export default function CustomersView({
             <h2 id="cust-dir-title" className="text-sm font-bold text-slate-800">Danh bạ Khách hàng</h2>
             <p className="text-[10px] text-slate-400">Quản lý hồ sơ và bệnh án thẩm mỹ</p>
           </div>
-          <button
-            id="btn-add-customer-modal"
-            onClick={() => setShowAddModal(true)}
-            className="p-2 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded-xl flex items-center justify-center transition-all"
-            title="Thêm khách hàng mới"
-          >
-            <UserPlus className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              id="btn-export-customers-excel"
+              onClick={() => {
+                exportToExcel(
+                  filteredCustomers,
+                  ['Mã Khách hàng', 'Họ và tên', 'Số điện thoại', 'Tuổi', 'Giới tính', 'Hạng thành viên', 'Tổng chi tiêu (VND)', 'Số lần điều trị', 'Ghi chú'],
+                  ['id', 'name', 'phone', 'age', 'gender', 'rank', 'totalSpent', 'totalVisits', 'notes'],
+                  'Danh_sach_Khach_hang'
+                );
+              }}
+              className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl flex items-center justify-center transition-all"
+              title="Xuất danh sách khách hàng ra Excel"
+            >
+              <Download className="h-4 w-4" />
+            </button>
+            <button
+              id="btn-add-customer-modal"
+              onClick={() => setShowAddModal(true)}
+              className="p-2 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded-xl flex items-center justify-center transition-all"
+              title="Thêm khách hàng mới"
+            >
+              <UserPlus className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Search & Filters */}
