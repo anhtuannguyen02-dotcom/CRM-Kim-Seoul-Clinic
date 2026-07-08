@@ -446,12 +446,48 @@ export default function App() {
 
   // Update staff details
   const handleUpdateStaff = (id: string, updatedFields: Partial<Technician>) => {
+    const originalTech = technicians.find(t => t.id === id);
     setTechnicians(technicians.map(t => {
       if (t.id === id) {
         return { ...t, ...updatedFields };
       }
       return t;
     }));
+
+    if (originalTech) {
+      const oldName = originalTech.name;
+      const newName = updatedFields.name || oldName;
+
+      if (newName !== oldName) {
+        // Sync Appointments referencing this clinician
+        setAppointments(prev => prev.map(appt => {
+          if (appt.technicianId === id || appt.technicianName === oldName) {
+            return {
+              ...appt,
+              technicianName: newName,
+              technicianId: id
+            };
+          }
+          return appt;
+        }));
+
+        // Sync Customers treatment history
+        setCustomers(prev => prev.map(c => {
+          let changed = false;
+          const treatmentHistory = (c.treatmentHistory || []).map(th => {
+            if (th.technician === oldName) {
+              changed = true;
+              return { ...th, technician: newName };
+            }
+            return th;
+          });
+          if (changed) {
+            return { ...c, treatmentHistory };
+          }
+          return c;
+        }));
+      }
+    }
   };
 
   // Delete staff member
@@ -470,12 +506,66 @@ export default function App() {
 
   // Update Service
   const handleUpdateService = (id: string, updatedFields: Partial<ServiceItem>) => {
+    const originalService = services.find(s => s.id === id);
     setServices(services.map(s => {
       if (s.id === id) {
         return { ...s, ...updatedFields };
       }
       return s;
     }));
+
+    if (originalService) {
+      const oldName = originalService.name;
+      const newName = updatedFields.name || oldName;
+      const newPrice = updatedFields.price !== undefined ? updatedFields.price : originalService.price;
+
+      // If name or price has changed, sync with other tables
+      if (newName !== oldName || newPrice !== originalService.price) {
+        // Update Appointments referencing this service name
+        setAppointments(prev => prev.map(appt => {
+          if (appt.serviceName === oldName) {
+            return {
+              ...appt,
+              serviceName: newName,
+              // Update price if appointment is pending
+              price: (appt.status === 'Chờ phục vụ' || appt.status === 'Đang thực hiện') ? newPrice : appt.price
+            };
+          }
+          return appt;
+        }));
+
+        // Update CRM Tasks
+        setCrmTasks(prev => prev.map(task => {
+          if (task.serviceName === oldName) {
+            return { ...task, serviceName: newName };
+          }
+          return task;
+        }));
+
+        // Update Customers active packages & treatment history
+        setCustomers(prev => prev.map(c => {
+          let changed = false;
+          const activePackages = (c.activePackages || []).map(pkg => {
+            if (pkg.packageName === oldName) {
+              changed = true;
+              return { ...pkg, packageName: newName };
+            }
+            return pkg;
+          });
+          const treatmentHistory = (c.treatmentHistory || []).map(th => {
+            if (th.serviceName === oldName) {
+              changed = true;
+              return { ...th, serviceName: newName };
+            }
+            return th;
+          });
+          if (changed) {
+            return { ...c, activePackages, treatmentHistory };
+          }
+          return c;
+        }));
+      }
+    }
   };
 
   // Delete Service
@@ -485,12 +575,51 @@ export default function App() {
 
   // Update Customer Details
   const handleUpdateCustomer = (id: string, updatedFields: Partial<Customer>) => {
+    const originalCust = customers.find(c => c.id === id);
     setCustomers(customers.map(c => {
       if (c.id === id) {
         return { ...c, ...updatedFields };
       }
       return c;
     }));
+
+    if (originalCust) {
+      const oldName = originalCust.name;
+      const oldPhone = originalCust.phone;
+      const oldAvatar = originalCust.avatar;
+
+      const newName = updatedFields.name || oldName;
+      const newPhone = updatedFields.phone || oldPhone;
+      const newAvatar = updatedFields.avatar || oldAvatar;
+
+      if (newName !== oldName || newPhone !== oldPhone || newAvatar !== oldAvatar) {
+        // Sync Appointments
+        setAppointments(prev => prev.map(appt => {
+          if (appt.customerId === id) {
+            return {
+              ...appt,
+              customerName: newName,
+              customerPhone: newPhone,
+              customerAvatar: newAvatar
+            };
+          }
+          return appt;
+        }));
+
+        // Sync CRM Tasks
+        setCrmTasks(prev => prev.map(task => {
+          if (task.customerId === id) {
+            return {
+              ...task,
+              customerName: newName,
+              customerPhone: newPhone,
+              customerAvatar: newAvatar
+            };
+          }
+          return task;
+        }));
+      }
+    }
   };
 
   // Delete Customer
@@ -572,6 +701,7 @@ export default function App() {
           <CustomersView
             customers={customers}
             services={services}
+            technicians={technicians}
             onAddCustomer={handleAddCustomer}
             onAddTreatmentNote={handleAddCustomerTreatmentNote}
             onAddCustomerPackage={handleAddCustomerPackage}

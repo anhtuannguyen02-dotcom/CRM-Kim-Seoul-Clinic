@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, 
   UserPlus, 
@@ -18,11 +18,12 @@ import {
   Edit3,
   Trash2
 } from 'lucide-react';
-import { Customer, ServiceItem } from '../types';
+import { Customer, ServiceItem, Technician } from '../types';
 
 interface CustomersViewProps {
   customers: Customer[];
   services: ServiceItem[];
+  technicians?: Technician[];
   onAddCustomer: (customer: Omit<Customer, 'id' | 'totalSpent' | 'totalVisits' | 'treatmentHistory' | 'activePackages' | 'beforeAfterImages'>) => void;
   onAddTreatmentNote: (customerId: string, note: string, serviceName: string, technician: string) => void;
   onAddCustomerPackage: (customerId: string, packageName: string, totalSessions: number, price: number) => void;
@@ -114,6 +115,7 @@ const PHOTO_TEMPLATES = [
 export default function CustomersView({
   customers,
   services,
+  technicians,
   onAddCustomer,
   onAddTreatmentNote,
   onAddCustomerPackage,
@@ -157,7 +159,24 @@ export default function CustomersView({
   // Form states for adding a treatment session note
   const [newTreatmentNote, setNewTreatmentNote] = useState('');
   const [newTreatmentService, setNewTreatmentService] = useState(() => services[0]?.name || 'Massage Body Seoul Heal 60 phút');
-  const [newTreatmentTech, setNewTreatmentTech] = useState('Phạm Minh Tú');
+  const [newTreatmentTech, setNewTreatmentTech] = useState(() => technicians?.[0]?.name || 'Phạm Minh Tú');
+
+  // Synchronize treatment service and technician if they change or get deleted from system
+  useEffect(() => {
+    if (services && services.length > 0) {
+      if (!services.some(s => s.name === newTreatmentService)) {
+        setNewTreatmentService(services[0].name);
+      }
+    }
+  }, [services, newTreatmentService]);
+
+  useEffect(() => {
+    if (technicians && technicians.length > 0) {
+      if (!technicians.some(t => t.name === newTreatmentTech)) {
+        setNewTreatmentTech(technicians[0].name);
+      }
+    }
+  }, [technicians, newTreatmentTech]);
 
   // Form states for buying package
   const [newPkgName, setNewPkgName] = useState('Combo Trẻ Hoá Toàn Diện 5 Buổi');
@@ -777,10 +796,20 @@ export default function CustomersView({
                     onChange={(e) => setNewTreatmentTech(e.target.value)}
                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
                   >
-                    <option value="Phạm Minh Tú">Phạm Minh Tú</option>
-                    <option value="Nguyễn Đông Nhi">Nguyễn Đông Nhi</option>
-                    <option value="Trần Hà Phương">Trần Hà Phương</option>
-                    <option value="Lê Quỳnh Anh">Lê Quỳnh Anh</option>
+                    {technicians && technicians.length > 0 ? (
+                      technicians.map((t) => (
+                        <option key={t.id} value={t.name}>
+                          {t.name} ({t.role})
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="Phạm Minh Tú">Phạm Minh Tú</option>
+                        <option value="Nguyễn Đông Nhi">Nguyễn Đông Nhi</option>
+                        <option value="Trần Hà Phương">Trần Hà Phương</option>
+                        <option value="Lê Quỳnh Anh">Lê Quỳnh Anh</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
