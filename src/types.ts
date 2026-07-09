@@ -3,8 +3,9 @@ export interface Customer {
   name: string;
   phone: string;
   age: number;
+  birthday?: string;
   gender: 'Nam' | 'Nữ';
-  rank: 'Diamond VIP' | 'Gold Member' | 'Silver Member' | 'Standard';
+  rank: 'Diamond VIP Plus' | 'Diamond VIP' | 'Gold Member' | 'Silver Member' | 'Standard';
   avatar: string;
   totalSpent: number;
   totalVisits: number;
@@ -28,6 +29,14 @@ export interface Customer {
     title: string;
   }[];
   discountPercent?: number;
+  kimRewardBillGoc?: number;
+  kimRewardReferrals?: { name: string; phone: string; billAmount: number; date: string }[];
+  kimSkincarePass?: {
+    activatedDate: string;
+    expiryDate: string;
+    price: number;
+    status: 'Hoạt động' | 'Hết hạn';
+  };
 }
 
 export interface Appointment {

@@ -31,6 +31,15 @@ import SettingsView from './components/SettingsView';
 import { Sparkles, Key, UserCheck, ShieldAlert, Clock } from 'lucide-react';
 import { motion } from 'motion/react';
 
+// Formulate Rank from totalSpent dynamically matching Spa policies
+export const getCustomerRank = (totalSpent: number): 'Diamond VIP Plus' | 'Diamond VIP' | 'Gold Member' | 'Silver Member' | 'Standard' => {
+  if (totalSpent >= 100000000) return 'Diamond VIP Plus';
+  if (totalSpent >= 60000000) return 'Diamond VIP';
+  if (totalSpent >= 36000000) return 'Gold Member';
+  if (totalSpent >= 24000000) return 'Silver Member';
+  return 'Standard';
+};
+
 export default function App() {
   // Login State
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -225,9 +234,11 @@ export default function App() {
     setNotificationsCount(prev => prev + 1);
   };
 
-  // Update Appointment Status
+  // Update Appointment Status and automatically link customer spending, auto rank, treatment history & CRM care tasks
   const handleUpdateAppointmentStatus = (id: string, status: Appointment['status']) => {
     const previousAppt = appointments.find(a => a.id === id);
+    if (!previousAppt) return;
+
     const updated = appointments.map(appt => {
       if (appt.id === id) {
         return { ...appt, status };
@@ -237,19 +248,120 @@ export default function App() {
     setAppointments(updated);
 
     // Update daily stats check-ins
-    if (status === 'Đang thực hiện' && previousAppt?.status === 'Chờ phục vụ') {
+    if (status === 'Đang thực hiện' && previousAppt.status === 'Chờ phục vụ') {
       setStats(prev => ({
         ...prev,
         appointmentsCheckedIn: prev.appointmentsCheckedIn + 1
       }));
     }
+
+    // LINK WITH CUSTOMER SPENDING & AUTO RANK UPGRADE
+    if (status === 'Hoàn thành' && previousAppt.status !== 'Hoàn thành') {
+      // 1. Accumulate spending for the customer and upgrade rank
+      setCustomers(prevCustomers => prevCustomers.map(c => {
+        if (c.id === previousAppt.customerId) {
+          const newTotalSpent = c.totalSpent + previousAppt.price;
+          const newRank = getCustomerRank(newTotalSpent);
+          
+          // Log into treatment history with a unique ID linked to this appointment
+          const treatmentHistory = c.treatmentHistory || [];
+          const isExist = treatmentHistory.some(th => th.id === `th_appt_${previousAppt.id}`);
+          const updatedHistory = isExist ? treatmentHistory : [
+            {
+              id: `th_appt_${previousAppt.id}`,
+              date: new Date().toLocaleDateString('vi-VN'),
+              serviceName: previousAppt.serviceName,
+              technician: previousAppt.technicianName,
+              note: previousAppt.notes || 'Hoàn thành từ lịch hẹn đặt trước',
+              status: 'Hoàn thành' as const
+            },
+            ...treatmentHistory
+          ];
+
+          // 2. Automatically generate a CRM care task 3 days after treatment
+          const careTask: CRMTask = {
+            id: `task_auto_${Date.now()}`,
+            customerId: c.id,
+            customerName: c.name,
+            customerPhone: c.phone,
+            customerAvatar: c.avatar,
+            type: 'Sau liệu trình',
+            serviceName: previousAppt.serviceName,
+            description: `Chăm sóc sau liệu trình: Liên hệ hỏi thăm khách hàng "${c.name}" tình trạng hồi phục sau khi làm dịch vụ "${previousAppt.serviceName}". Hướng dẫn bôi kem phục hồi & chống nắng kỹ lưỡng.`,
+            dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            status: 'Cần liên hệ',
+            loggedInteractions: []
+          };
+          setCrmTasks(prevTasks => [careTask, ...prevTasks]);
+
+          return {
+            ...c,
+            totalSpent: newTotalSpent,
+            totalVisits: c.totalVisits + 1,
+            rank: newRank,
+            treatmentHistory: updatedHistory
+          };
+        }
+        return c;
+      }));
+
+      // 2. Update technician completed jobs count
+      if (previousAppt.technicianId || previousAppt.technicianName) {
+        setTechnicians(prevTechs => prevTechs.map(t => {
+          if ((previousAppt.technicianId && t.id === previousAppt.technicianId) || t.name === previousAppt.technicianName) {
+            return { ...t, completedJobs: t.completedJobs + 1 };
+          }
+          return t;
+        }));
+      }
+
+      // 3. Increment revenue in stats
+      setStats(prev => ({
+        ...prev,
+        revenue: prev.revenue + previousAppt.price
+      }));
+    } else if (previousAppt.status === 'Hoàn thành' && status !== 'Hoàn thành') {
+      // Revert spending if reverting appointment from Completed status
+      setCustomers(prevCustomers => prevCustomers.map(c => {
+        if (c.id === previousAppt.customerId) {
+          const newTotalSpent = Math.max(0, c.totalSpent - previousAppt.price);
+          const newRank = getCustomerRank(newTotalSpent);
+          const treatmentHistory = (c.treatmentHistory || []).filter(th => th.id !== `th_appt_${previousAppt.id}`);
+          return {
+            ...c,
+            totalSpent: newTotalSpent,
+            totalVisits: Math.max(0, c.totalVisits - 1),
+            rank: newRank,
+            treatmentHistory
+          };
+        }
+        return c;
+      }));
+
+      // Revert technician completed jobs count
+      if (previousAppt.technicianId || previousAppt.technicianName) {
+        setTechnicians(prevTechs => prevTechs.map(t => {
+          if ((previousAppt.technicianId && t.id === previousAppt.technicianId) || t.name === previousAppt.technicianName) {
+            return { ...t, completedJobs: Math.max(0, t.completedJobs - 1) };
+          }
+          return t;
+        }));
+      }
+
+      // Revert revenue in stats
+      setStats(prev => ({
+        ...prev,
+        revenue: Math.max(0, prev.revenue - previousAppt.price)
+      }));
+    }
   };
 
   // Add Customer
-  const handleAddCustomer = (newCust: Omit<Customer, 'id' | 'totalSpent' | 'totalVisits' | 'treatmentHistory' | 'activePackages' | 'beforeAfterImages'>) => {
+  const handleAddCustomer = (newCust: Omit<Customer, 'id' | 'totalSpent' | 'totalVisits' | 'treatmentHistory' | 'activePackages' | 'beforeAfterImages'>): string => {
+    const newId = `cust_${Date.now()}`;
     const cust: Customer = {
       ...newCust,
-      id: `cust_${Date.now()}`,
+      id: newId,
       totalSpent: 0,
       totalVisits: 0,
       treatmentHistory: [],
@@ -257,11 +369,63 @@ export default function App() {
       beforeAfterImages: []
     };
 
-    setCustomers([cust, ...customers]);
+    setCustomers(prev => [cust, ...prev]);
     setStats(prev => ({
       ...prev,
       newCustomers: prev.newCustomers + 1
     }));
+
+    // Trigger CRM Care Tasks for programs if pre-activated
+    const newTasks: CRMTask[] = [];
+    if (newCust.kimSkincarePass) {
+      newTasks.push({
+        id: `task_sp_${Date.now()}_1`,
+        customerId: newId,
+        customerName: newCust.name,
+        customerPhone: newCust.phone,
+        customerAvatar: newCust.avatar || 'https://lh3.googleusercontent.com/aida-public/AB6AXuAPhGoTjtUutxMviwQA6tzgNLgwC3L905UOgKFihCIpyIjjRu_w3A2ql6Ldgf7SyHmH2W81se759xGRrYJpjrK3C6UrOcp8c4RvueFZ2ZjLiwHRpfzcz7uCaRG9fWRxIod9gR11Git42RpGQGQ-46USAyjgDUUR6WmgnV6PSeks4n5nAiH6qog5J5dpE9EIoZkAXx20kT38-oB2-wU8F9dzoq8SY_4L9fHCpTmv00D79cqTPAexmOHg8A',
+        type: 'Ưu đãi VIP',
+        serviceName: 'KIM SKINCARE PASS',
+        description: `Chào mừng hội viên KIM SKINCARE PASS mới! Gọi điện tư vấn quyền lợi (giảm 50% chăm sóc da, 20% Filler/Botox) và đặt lịch chăm sóc định kỳ.`,
+        dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: 'Cần liên hệ',
+        loggedInteractions: []
+      });
+      newTasks.push({
+        id: `task_sp_${Date.now()}_2`,
+        customerId: newId,
+        customerName: newCust.name,
+        customerPhone: newCust.phone,
+        customerAvatar: newCust.avatar || 'https://lh3.googleusercontent.com/aida-public/AB6AXuAPhGoTjtUutxMviwQA6tzgNLgwC3L905UOgKFihCIpyIjjRu_w3A2ql6Ldgf7SyHmH2W81se759xGRrYJpjrK3C6UrOcp8c4RvueFZ2ZjLiwHRpfzcz7uCaRG9fWRxIod9gR11Git42RpGQGQ-46USAyjgDUUR6WmgnV6PSeks4n5nAiH6qog5J5dpE9EIoZkAXx20kT38-oB2-wU8F9dzoq8SY_4L9fHCpTmv00D79cqTPAexmOHg8A',
+        type: 'Ưu đãi VIP',
+        serviceName: 'KIM SKINCARE PASS',
+        description: `Nhắc gia hạn thẻ KIM SKINCARE PASS MEMBER: Khách sắp hết hạn 3 tháng sử dụng thẻ ưu đãi. Tư vấn gia hạn tiếp tục hưởng ưu đãi đặc quyền.`,
+        dueDate: new Date(Date.now() + 75 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: 'Cần liên hệ',
+        loggedInteractions: []
+      });
+    }
+    if (newCust.kimRewardBillGoc !== undefined) {
+      newTasks.push({
+        id: `task_kr_${Date.now()}`,
+        customerId: newId,
+        customerName: newCust.name,
+        customerPhone: newCust.phone,
+        customerAvatar: newCust.avatar || 'https://lh3.googleusercontent.com/aida-public/AB6AXuAPhGoTjtUutxMviwQA6tzgNLgwC3L905UOgKFihCIpyIjjRu_w3A2ql6Ldgf7SyHmH2W81se759xGRrYJpjrK3C6UrOcp8c4RvueFZ2ZjLiwHRpfzcz7uCaRG9fWRxIod9gR11Git42RpGQGQ-46USAyjgDUUR6WmgnV6PSeks4n5nAiH6qog5J5dpE9EIoZkAXx20kT38-oB2-wU8F9dzoq8SY_4L9fHCpTmv00D79cqTPAexmOHg8A',
+        type: 'Ưu đãi VIP',
+        serviceName: 'KIM REWARD',
+        description: `Tư vấn hoàn tiền KIM REWARD: Khách có Bill gốc ${new Intl.NumberFormat('vi-VN').format(newCust.kimRewardBillGoc)}đ. Gọi điện hỏi thăm & hướng dẫn giới thiệu tối thiểu 3 bạn bè để hoàn tiền lên tới 100%!`,
+        dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: 'Cần liên hệ',
+        loggedInteractions: []
+      });
+    }
+
+    if (newTasks.length > 0) {
+      setCrmTasks(prev => [...newTasks, ...prev]);
+    }
+
+    return newId;
   };
 
   // Complete CRM Task
@@ -301,10 +465,12 @@ export default function App() {
       if (c.id === customerId) {
         const treatmentHistory = c.treatmentHistory || [];
         const servicePrice = services.find(s => s.name === serviceName)?.price || 0;
+        const newTotalSpent = c.totalSpent + servicePrice;
         return {
           ...c,
           totalVisits: c.totalVisits + 1,
-          totalSpent: c.totalSpent + servicePrice,
+          totalSpent: newTotalSpent,
+          rank: getCustomerRank(newTotalSpent),
           treatmentHistory: [
             {
               id: `th_${Date.now()}`,
@@ -327,9 +493,11 @@ export default function App() {
     setCustomers(customers.map(c => {
       if (c.id === customerId) {
         const activePackages = c.activePackages || [];
+        const newTotalSpent = c.totalSpent + price;
         return {
           ...c,
-          totalSpent: c.totalSpent + price,
+          totalSpent: newTotalSpent,
+          rank: getCustomerRank(newTotalSpent),
           activePackages: [
             ...activePackages,
             {
@@ -492,7 +660,13 @@ export default function App() {
 
   // Delete staff member
   const handleDeleteStaff = (id: string) => {
-    setTechnicians(technicians.filter(t => t.id !== id));
+    setTechnicians(prev => prev.filter(t => t.id !== id));
+    setAppointments(prev => prev.map(appt => {
+      if (appt.technicianId === id) {
+        return { ...appt, technicianId: '', technicianName: 'Chưa chỉ định' };
+      }
+      return appt;
+    }));
   };
 
   // Add Service Item
@@ -578,7 +752,11 @@ export default function App() {
     const originalCust = customers.find(c => c.id === id);
     setCustomers(customers.map(c => {
       if (c.id === id) {
-        return { ...c, ...updatedFields };
+        const merged = { ...c, ...updatedFields };
+        if (updatedFields.totalSpent !== undefined) {
+          merged.rank = getCustomerRank(updatedFields.totalSpent);
+        }
+        return merged;
       }
       return c;
     }));
@@ -619,12 +797,67 @@ export default function App() {
           return task;
         }));
       }
+
+      // Automatically add CRM tasks for Special Programs
+      // 1. KIM SKINCARE PASS MEMBER
+      if (updatedFields.kimSkincarePass && !originalCust.kimSkincarePass) {
+        const welcomeTask: CRMTask = {
+          id: `task_sp_${Date.now()}_1`,
+          customerId: id,
+          customerName: newName,
+          customerPhone: newPhone,
+          customerAvatar: newAvatar,
+          type: 'Ưu đãi VIP',
+          serviceName: 'KIM SKINCARE PASS',
+          description: `Chào mừng hội viên KIM SKINCARE PASS mới! Gọi điện tư vấn quyền lợi (giảm 50% chăm sóc da, 20% Filler/Botox) và đặt lịch chăm sóc định kỳ.`,
+          dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 2 days from now
+          status: 'Cần liên hệ',
+          loggedInteractions: []
+        };
+        
+        const expiryTask: CRMTask = {
+          id: `task_sp_${Date.now()}_2`,
+          customerId: id,
+          customerName: newName,
+          customerPhone: newPhone,
+          customerAvatar: newAvatar,
+          type: 'Ưu đãi VIP',
+          serviceName: 'KIM SKINCARE PASS',
+          description: `Nhắc gia hạn thẻ KIM SKINCARE PASS MEMBER: Khách sắp hết hạn 3 tháng sử dụng thẻ ưu đãi. Tư vấn gia hạn tiếp tục hưởng ưu đãi đặc quyền.`,
+          dueDate: new Date(Date.now() + 75 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 75 days from now (~2.5 months)
+          status: 'Cần liên hệ',
+          loggedInteractions: []
+        };
+
+        setCrmTasks(prev => [welcomeTask, expiryTask, ...prev]);
+      }
+
+      // 2. KIM REWARD
+      if (updatedFields.kimRewardBillGoc !== undefined && originalCust.kimRewardBillGoc === undefined) {
+        const rewardTask: CRMTask = {
+          id: `task_kr_${Date.now()}`,
+          customerId: id,
+          customerName: newName,
+          customerPhone: newPhone,
+          customerAvatar: newAvatar,
+          type: 'Ưu đãi VIP',
+          serviceName: 'KIM REWARD',
+          description: `Tư vấn hoàn tiền KIM REWARD: Khách có Bill gốc ${new Intl.NumberFormat('vi-VN').format(updatedFields.kimRewardBillGoc)}đ. Gọi điện hỏi thăm & hướng dẫn giới thiệu tối thiểu 3 bạn bè để hoàn tiền lên tới 100%!`,
+          dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 5 days from now
+          status: 'Cần liên hệ',
+          loggedInteractions: []
+        };
+
+        setCrmTasks(prev => [rewardTask, ...prev]);
+      }
     }
   };
 
   // Delete Customer
   const handleDeleteCustomer = (id: string) => {
-    setCustomers(customers.filter(c => c.id !== id));
+    setCustomers(prev => prev.filter(c => c.id !== id));
+    setAppointments(prev => prev.filter(appt => appt.customerId !== id));
+    setCrmTasks(prev => prev.filter(task => task.customerId !== id));
   };
 
   // Edit Promotion
@@ -690,6 +923,9 @@ export default function App() {
             customers={customers}
             services={services}
             technicians={technicians}
+            promotions={promotions}
+            onUpdatePromotion={handleUpdatePromotion}
+            onAddCustomer={handleAddCustomer}
             onAddAppointment={handleAddAppointment}
             onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
             onUpdateAppointment={handleUpdateAppointment}
@@ -731,6 +967,9 @@ export default function App() {
             onUpdatePromoStatus={handleUpdatePromoStatus}
             onUpdatePromotion={handleUpdatePromotion}
             onDeletePromotion={handleDeletePromotion}
+            customers={customers}
+            onUpdateCustomer={handleUpdateCustomer}
+            onAddCustomer={handleAddCustomer}
           />
         );
       case 'staff':

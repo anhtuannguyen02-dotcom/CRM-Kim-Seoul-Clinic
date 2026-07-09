@@ -17,7 +17,10 @@ import {
   X,
   Edit3,
   Trash2,
-  Download
+  Download,
+  Trophy,
+  Users,
+  CreditCard
 } from 'lucide-react';
 import { Customer, ServiceItem, Technician } from '../types';
 import { exportToExcel } from '../utils/exportToExcel';
@@ -133,11 +136,49 @@ export default function CustomersView({
   const [showBuyPackageModal, setShowBuyPackageModal] = useState(false);
   const [showAddPhotoModal, setShowAddPhotoModal] = useState(false);
 
+  // Helper to calculate age from birthday string (YYYY-MM-DD)
+  const calculateAgeFromBirthday = (bday: string): number => {
+    if (!bday) return 30;
+    const birth = new Date(bday);
+    if (isNaN(birth.getTime())) return 30;
+    const today = new Date('2026-07-09'); // Consistent with current system date
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return Math.max(0, age);
+  };
+
+  const parseViDate = (str: string): Date => {
+    const parts = str.split('/');
+    if (parts.length === 3) {
+      return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+    }
+    return new Date(str);
+  };
+
+  const getDaysRemaining = (expiryStr: string): number => {
+    const exp = parseViDate(expiryStr);
+    const today = new Date();
+    // Normalize today
+    today.setHours(0, 0, 0, 0);
+    exp.setHours(0, 0, 0, 0);
+    const diff = exp.getTime() - today.getTime();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  };
+
+  // Helper to estimate birthday from age if none exists
+  const getBirthdayFromAge = (age: number): string => {
+    const birthYear = 2026 - age;
+    return `${birthYear}-01-01`;
+  };
+
   // Edit Customer States
   const [showEditCustomerModal, setShowEditCustomerModal] = useState(false);
   const [editCustName, setEditCustName] = useState('');
   const [editCustPhone, setEditCustPhone] = useState('');
-  const [editCustAge, setEditCustAge] = useState(30);
+  const [editCustBirthday, setEditCustBirthday] = useState('1996-01-01');
   const [editCustGender, setEditCustGender] = useState<'Nam' | 'Nữ'>('Nữ');
   const [editCustRank, setEditCustRank] = useState<Customer['rank']>('Standard');
   const [editCustNotes, setEditCustNotes] = useState('');
@@ -154,11 +195,14 @@ export default function CustomersView({
   // Form states for new customer
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
-  const [newAge, setNewAge] = useState(30);
+  const [newBirthday, setNewBirthday] = useState('1996-01-01');
   const [newGender, setNewGender] = useState<'Nam' | 'Nữ'>('Nữ');
   const [newRank, setNewRank] = useState<Customer['rank']>('Standard');
   const [newNotes, setNewNotes] = useState('');
   const [newDiscountPercent, setNewDiscountPercent] = useState<number>(0);
+  const [initKimReward, setInitKimReward] = useState(false);
+  const [initKimRewardBill, setInitKimRewardBill] = useState(3000000);
+  const [initKimSkincarePass, setInitKimSkincarePass] = useState(false);
 
   // Form states for adding a treatment session note
   const [newTreatmentNote, setNewTreatmentNote] = useState('');
@@ -188,6 +232,13 @@ export default function CustomersView({
   const [newPkgSessions, setNewPkgSessions] = useState(5);
   const [newPkgPrice, setNewPkgPrice] = useState(35000000);
 
+  // KIM REWARD States
+  const [showAddReferralForm, setShowAddReferralForm] = useState(false);
+  const [newReferralName, setNewReferralName] = useState('');
+  const [newReferralPhone, setNewReferralPhone] = useState('');
+  const [newReferralBill, setNewReferralBill] = useState<number>(3000000);
+  const [kimRewardManualBill, setKimRewardManualBill] = useState<number>(2000000);
+
   // Form states for before after photos
   const [photoTitle, setPhotoTitle] = useState('');
   const [beforePhoto, setBeforePhoto] = useState('');
@@ -211,11 +262,68 @@ export default function CustomersView({
 
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
+  // Dynamically generate packages by combining static SUGGESTED_PACKAGES and manual services configured in settings
+  const getDynamicPackages = () => {
+    const pkgs = [
+      { name: 'Gói KIM REWARD 2.000.000đ', sessions: 1, price: 2000000 },
+      { name: 'Gói KIM REWARD 3.000.000đ', sessions: 1, price: 3000000 },
+      { name: 'Gói KIM REWARD 5.000.000đ', sessions: 1, price: 5000000 },
+      { name: 'Gói KIM REWARD 8.000.000đ', sessions: 1, price: 8000000 },
+      { name: 'Gói KIM REWARD 10.000.000đ', sessions: 1, price: 10000000 },
+      ...SUGGESTED_PACKAGES
+    ];
+    if (services) {
+      services.forEach(srv => {
+        // Avoid duplicate names if they are already in SUGGESTED_PACKAGES
+        const hasExactMatch = SUGGESTED_PACKAGES.some(p => p.name === srv.name || p.name.includes(srv.name));
+        if (!hasExactMatch) {
+          // Generate a single session package
+          pkgs.push({
+            name: `${srv.name} (Buổi lẻ)`,
+            sessions: 1,
+            price: srv.price
+          });
+          
+          // Generate a 5-session package (with 5% discount)
+          pkgs.push({
+            name: `Gói 5 buổi ${srv.name}`,
+            sessions: 5,
+            price: Math.round(srv.price * 5 * 0.95)
+          });
+
+          // Generate a 10-session package (with 10% discount)
+          pkgs.push({
+            name: `Gói 10 buổi ${srv.name}`,
+            sessions: 10,
+            price: Math.round(srv.price * 10 * 0.90)
+          });
+        }
+      });
+    }
+    return pkgs;
+  };
+
+  const openBuyPackageModal = () => {
+    const dynamicPkgs = getDynamicPackages();
+    if (dynamicPkgs.length > 0) {
+      setNewPkgName(dynamicPkgs[0].name);
+      setNewPkgSessions(dynamicPkgs[0].sessions);
+      setNewPkgPrice(dynamicPkgs[0].price);
+    } else {
+      setNewPkgName('custom');
+      setNewPkgSessions(5);
+      setNewPkgPrice(10000000);
+    }
+    setCustomPkgName('');
+    setShowBuyPackageModal(true);
+  };
+
   // Auto-fill package sessions and prices based on chosen suggested package
   const handlePkgNameChange = (val: string) => {
     setNewPkgName(val);
     if (val !== 'custom') {
-      const selectedSug = SUGGESTED_PACKAGES.find(p => p.name === val);
+      const dynamicPkgs = getDynamicPackages();
+      const selectedSug = dynamicPkgs.find(p => p.name === val);
       if (selectedSug) {
         setNewPkgSessions(selectedSug.sessions);
         setNewPkgPrice(selectedSug.price);
@@ -232,30 +340,51 @@ export default function CustomersView({
     e.preventDefault();
     if (!newName || !newPhone) return;
 
+    const calculatedAge = calculateAgeFromBirthday(newBirthday);
+    const today = new Date();
+    const expiry = new Date();
+    expiry.setMonth(today.getMonth() + 3);
+
     onAddCustomer({
       name: newName,
       phone: newPhone,
-      age: Number(newAge),
+      age: calculatedAge,
+      birthday: newBirthday,
       gender: newGender,
       rank: newRank,
       notes: newNotes,
       discountPercent: Number(newDiscountPercent),
-      avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAPhGoTjtUutxMviwQA6tzgNLgwC3L905UOgKFihCIpyIjjRu_w3A2ql6Ldgf7SyHmH2W81se759xGRrYJpjrK3C6UrOcp8c4RvueFZ2ZjLiwHRpfzcz7uCaRG9fWRxIod9gR11Git42RpGQGQ-46USAyjgDUUR6WmgnV6PSeks4n5nAiH6qog5J5dpE9EIoZkAXx20kT38-oB2-wU8F9dzoq8SY_4L9fHCpTmv00D79cqTPAexmOHg8A'
+      avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAPhGoTjtUutxMviwQA6tzgNLgwC3L905UOgKFihCIpyIjjRu_w3A2ql6Ldgf7SyHmH2W81se759xGRrYJpjrK3C6UrOcp8c4RvueFZ2ZjLiwHRpfzcz7uCaRG9fWRxIod9gR11Git42RpGQGQ-46USAyjgDUUR6WmgnV6PSeks4n5nAiH6qog5J5dpE9EIoZkAXx20kT38-oB2-wU8F9dzoq8SY_4L9fHCpTmv00D79cqTPAexmOHg8A',
+      ...(initKimReward ? {
+        kimRewardBillGoc: initKimRewardBill,
+        kimRewardReferrals: []
+      } : {}),
+      ...(initKimSkincarePass ? {
+        kimSkincarePass: {
+          activatedDate: today.toLocaleDateString('vi-VN'),
+          expiryDate: expiry.toLocaleDateString('vi-VN'),
+          price: 1000000,
+          status: 'Hoạt động'
+        }
+      } : {})
     });
 
     setShowAddModal(false);
     setNewName('');
     setNewPhone('');
-    setNewAge(30);
+    setNewBirthday('1996-01-01');
     setNewNotes('');
     setNewDiscountPercent(0);
+    setInitKimReward(false);
+    setInitKimRewardBill(3000000);
+    setInitKimSkincarePass(false);
   };
 
   // Start edit customer details
   const handleStartEditCustomer = (cust: Customer) => {
     setEditCustName(cust.name);
     setEditCustPhone(cust.phone);
-    setEditCustAge(cust.age);
+    setEditCustBirthday(cust.birthday || getBirthdayFromAge(cust.age));
     setEditCustGender(cust.gender);
     setEditCustRank(cust.rank);
     setEditCustNotes(cust.notes);
@@ -268,10 +397,12 @@ export default function CustomersView({
   const handleEditCustomerSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCustomerId || !onUpdateCustomer) return;
+    const calculatedAge = calculateAgeFromBirthday(editCustBirthday);
     onUpdateCustomer(selectedCustomerId, {
       name: editCustName,
       phone: editCustPhone,
-      age: Number(editCustAge),
+      age: calculatedAge,
+      birthday: editCustBirthday,
       gender: editCustGender,
       rank: editCustRank,
       notes: editCustNotes,
@@ -280,6 +411,85 @@ export default function CustomersView({
     });
     setShowEditCustomerModal(false);
     alert('Đồng bộ hồ sơ khách hàng thành công!');
+  };
+
+  // KIM REWARD Handlers
+  const handleRegisterKimRewardManual = () => {
+    if (!selectedCustomerId || !onUpdateCustomer) return;
+    if (kimRewardManualBill < 2000000 || kimRewardManualBill > 10000000) {
+      alert('Hạn mức bill gốc áp dụng từ 2.000.000đ đến 10.000.000đ.');
+      return;
+    }
+    onUpdateCustomer(selectedCustomerId, {
+      kimRewardBillGoc: kimRewardManualBill,
+      kimRewardReferrals: []
+    });
+    alert('Kích hoạt chương trình KIM REWARD thành công!');
+  };
+
+  const handleAddReferral = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCustomerId || !onUpdateCustomer || !selectedCustomer) return;
+    if (!newReferralName || !newReferralPhone) {
+      alert('Vui lòng điền đủ thông tin khách hàng mới.');
+      return;
+    }
+    const currentReferrals = selectedCustomer.kimRewardReferrals || [];
+    const updatedReferrals = [
+      ...currentReferrals,
+      {
+        name: newReferralName,
+        phone: newReferralPhone,
+        billAmount: Number(newReferralBill),
+        date: new Date().toLocaleDateString('vi-VN')
+      }
+    ];
+
+    onUpdateCustomer(selectedCustomerId, {
+      kimRewardReferrals: updatedReferrals
+    });
+
+    setNewReferralName('');
+    setNewReferralPhone('');
+    setNewReferralBill(3000000);
+    setShowAddReferralForm(false);
+    alert('Thêm khách hàng giới thiệu mới thành công!');
+  };
+
+  const handleDeleteReferral = (idx: number) => {
+    if (!selectedCustomerId || !onUpdateCustomer || !selectedCustomer) return;
+    const currentReferrals = selectedCustomer.kimRewardReferrals || [];
+    const updatedReferrals = currentReferrals.filter((_, i) => i !== idx);
+    onUpdateCustomer(selectedCustomerId, {
+      kimRewardReferrals: updatedReferrals
+    });
+    alert('Đã xóa khách giới thiệu.');
+  };
+
+  // KIM SKINCARE PASS Handlers
+  const handleRegisterKimSkincarePass = () => {
+    if (!selectedCustomerId || !onUpdateCustomer) return;
+    const today = new Date();
+    const expiry = new Date();
+    expiry.setMonth(today.getMonth() + 3);
+
+    onUpdateCustomer(selectedCustomerId, {
+      kimSkincarePass: {
+        activatedDate: today.toLocaleDateString('vi-VN'),
+        expiryDate: expiry.toLocaleDateString('vi-VN'),
+        price: 1000000,
+        status: 'Hoạt động'
+      }
+    });
+    alert('Kích hoạt thẻ KIM SKINCARE PASS MEMBER thành công cho khách hàng này!');
+  };
+
+  const handleCancelKimSkincarePass = () => {
+    if (!selectedCustomerId || !onUpdateCustomer) return;
+    onUpdateCustomer(selectedCustomerId, {
+      kimSkincarePass: undefined
+    });
+    alert('Đã hủy thẻ KIM SKINCARE PASS của khách hàng này.');
   };
 
   // Start edit photo comparison
@@ -366,6 +576,14 @@ export default function CustomersView({
     const finalPrice = discountRate > 0 ? Math.round(newPkgPrice * (1 - discountRate / 100)) : newPkgPrice;
 
     onAddCustomerPackage(selectedCustomerId, finalName, newPkgSessions, finalPrice);
+    
+    if (finalName.toUpperCase().includes('KIM REWARD') && onUpdateCustomer) {
+      onUpdateCustomer(selectedCustomerId, {
+        kimRewardBillGoc: finalPrice,
+        kimRewardReferrals: []
+      });
+    }
+
     setShowBuyPackageModal(false);
     setCustomPkgName('');
     setNewPkgSessions(5);
@@ -450,7 +668,7 @@ export default function CustomersView({
           </div>
 
           <div id="cust-rank-filter-tabs" className="flex items-center gap-1.5 overflow-x-auto pb-1">
-            {(['All', 'Diamond VIP', 'Gold Member', 'Silver Member', 'Standard'] as const).map((rank) => (
+            {(['All', 'Diamond VIP Plus', 'Diamond VIP', 'Gold Member', 'Silver Member', 'Standard'] as const).map((rank) => (
               <button
                 id={`rank-filter-tab-${rank}`}
                 key={rank}
@@ -461,7 +679,7 @@ export default function CustomersView({
                     : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
                 }`}
               >
-                {rank === 'All' ? 'Tất cả' : rank.split(' ')[0]}
+                {rank === 'All' ? 'Tất cả' : rank === 'Diamond VIP Plus' ? 'Plus' : rank.split(' ')[0]}
               </button>
             ))}
           </div>
@@ -495,12 +713,13 @@ export default function CustomersView({
 
                   <div className="text-right flex flex-col items-end">
                     <span className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-bold ${
-                      c.rank === 'Diamond VIP' ? 'bg-amber-50 text-amber-700' :
-                      c.rank === 'Gold Member' ? 'bg-yellow-50 text-yellow-700' :
-                      c.rank === 'Silver Member' ? 'bg-slate-100 text-slate-700' :
+                      c.rank === 'Diamond VIP Plus' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                      c.rank === 'Diamond VIP' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                      c.rank === 'Gold Member' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
+                      c.rank === 'Silver Member' ? 'bg-slate-100 text-slate-700 border border-slate-200' :
                       'bg-slate-50 text-slate-500'
                     }`}>
-                      {c.rank.split(' ')[0]}
+                      {c.rank === 'Diamond VIP Plus' ? 'Plus 💎' : c.rank.split(' ')[0]}
                     </span>
                     <span className="text-[9px] text-slate-400 font-medium font-mono mt-1">{c.totalVisits} ca</span>
                   </div>
@@ -561,6 +780,7 @@ export default function CustomersView({
                     )}
 
                     <span id="customer-profile-rank" className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                      selectedCustomer.rank === 'Diamond VIP Plus' ? 'bg-rose-50 text-rose-700 border-rose-200/50' :
                       selectedCustomer.rank === 'Diamond VIP' ? 'bg-amber-50 text-amber-700 border-amber-200/50' :
                       selectedCustomer.rank === 'Gold Member' ? 'bg-yellow-50 text-yellow-700 border-yellow-200/50' :
                       selectedCustomer.rank === 'Silver Member' ? 'bg-slate-100 text-slate-700 border-slate-200/50' :
@@ -574,7 +794,9 @@ export default function CustomersView({
                       <Phone className="h-3.5 w-3.5 text-slate-400" />
                       {selectedCustomer.phone}
                     </span>
-                    <span>Tuổi: <strong className="text-slate-700">{selectedCustomer.age}</strong> • Giới tính: <strong className="text-slate-700">{selectedCustomer.gender}</strong></span>
+                    <span>
+                      Ngày sinh: <strong className="text-slate-700">{selectedCustomer.birthday ? new Date(selectedCustomer.birthday).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : new Date(getBirthdayFromAge(selectedCustomer.age)).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong> • Tuổi: <strong className="text-slate-700">{selectedCustomer.age}</strong> • Giới tính: <strong className="text-slate-700">{selectedCustomer.gender}</strong>
+                    </span>
                     {selectedCustomer.discountPercent ? (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-rose-50 text-[10px] font-bold text-rose-600 border border-rose-100">
                         🎁 Giảm trừ đặc cách: {selectedCustomer.discountPercent}%
@@ -618,7 +840,7 @@ export default function CustomersView({
                     Liệu trình sở hữu
                   </span>
                   <button
-                    onClick={() => setShowBuyPackageModal(true)}
+                    onClick={openBuyPackageModal}
                     className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[9px] font-bold flex items-center gap-1 shadow-sm transition-colors"
                   >
                     <Plus className="h-2.5 w-2.5" /> Bán gói
@@ -646,6 +868,433 @@ export default function CustomersView({
                   )}
                 </div>
               </div>
+            </div>
+
+            {/* KIM REWARD Program Section */}
+            <div id="customer-kim-reward-section" className="space-y-4 pt-6 border-t border-slate-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-4.5 w-4.5 text-amber-500" />
+                  <span className="text-[11px] uppercase tracking-wider text-slate-700 font-bold">Chương trình KIM REWARD (Tri ân 100%)</span>
+                </div>
+                {selectedCustomer.kimRewardBillGoc && (
+                  <button
+                    onClick={() => {
+                      if (confirm('Bạn có chắc chắn muốn hủy đăng ký chương trình KIM REWARD của khách hàng này?')) {
+                        if (onUpdateCustomer) {
+                          onUpdateCustomer(selectedCustomer.id, {
+                            kimRewardBillGoc: undefined,
+                            kimRewardReferrals: []
+                          });
+                        }
+                      }
+                    }}
+                    className="text-[10px] text-rose-500 hover:text-rose-700 font-bold hover:underline transition-colors animate-fade-in"
+                  >
+                    Hủy tham gia
+                  </button>
+                )}
+              </div>
+
+              {!selectedCustomer.kimRewardBillGoc ? (
+                <div className="bg-gradient-to-br from-amber-500/5 to-amber-600/10 border border-amber-200/40 rounded-2xl p-5 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-slate-800">Khách chưa tham gia KIM REWARD</p>
+                      <p className="text-[10px] text-slate-500 leading-relaxed">
+                        Kim Reward là chương trình hoàn tiền lên tới <strong className="text-amber-700">100% Bill gốc</strong> (áp dụng cho bill từ 2.000.000đ - 10.000.000đ) khi khách giới thiệu thành công tối thiểu 3 khách mới có giao dịch thật với tổng doanh thu gấp 3 lần bill gốc.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-3.5 rounded-xl border border-amber-200/20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    <div className="flex-1 space-y-1.5">
+                      <label className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Nhập giá trị Bill gốc đăng ký (VND)</label>
+                      <input
+                        type="number"
+                        min="2000000"
+                        max="10000000"
+                        step="500000"
+                        value={kimRewardManualBill}
+                        onChange={(e) => setKimRewardManualBill(Number(e.target.value))}
+                        className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:ring-1 focus:ring-amber-500 bg-white font-mono font-bold text-slate-800"
+                      />
+                    </div>
+                    <button
+                      onClick={handleRegisterKimRewardManual}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs transition-all shrink-0 self-end sm:self-auto shadow-sm"
+                    >
+                      Kích hoạt ngay
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                (() => {
+                  const billGoc = selectedCustomer.kimRewardBillGoc || 0;
+                  const referrals = selectedCustomer.kimRewardReferrals || [];
+                  const validReferrals = referrals.filter(r => r.billAmount >= 2000000);
+                  const totalRevenue = validReferrals.reduce((sum, r) => sum + r.billAmount, 0);
+                  const count = validReferrals.length;
+                  const targetRevenue = billGoc * 3;
+
+                  const moc1Unlocked = count >= 1 && totalRevenue >= billGoc;
+                  const moc2Unlocked = count >= 2 && totalRevenue >= billGoc * 2;
+                  const moc3Unlocked = count >= 3 && totalRevenue >= targetRevenue;
+
+                  let totalRefund = 0;
+                  if (moc1Unlocked) totalRefund += billGoc * 0.333;
+                  if (moc2Unlocked) totalRefund += billGoc * 0.333;
+                  if (moc3Unlocked) totalRefund += billGoc * 0.334;
+                  totalRefund = Math.round(totalRefund);
+
+                  const progressPercent = Math.min(100, Math.round((totalRevenue / targetRevenue) * 100));
+
+                  return (
+                    <div className="space-y-4 animate-fade-in">
+                      {/* Stat summary grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col">
+                          <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Bill gốc đăng ký</span>
+                          <span className="text-xs font-extrabold text-slate-800 font-mono mt-1">{formatVND(billGoc)}</span>
+                          <span className="text-[9px] text-slate-400 mt-0.5">Tri ân hoàn tối đa 100%</span>
+                        </div>
+                        <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col">
+                          <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Chỉ tiêu khách mới</span>
+                          <span className="text-xs font-extrabold text-slate-800 font-mono mt-1">{formatVND(targetRevenue)}</span>
+                          <span className="text-[9px] text-slate-400 mt-0.5">Yêu cầu gấp 3 lần bill gốc</span>
+                        </div>
+                        <div className="p-3.5 bg-amber-500/5 border border-amber-500/15 rounded-2xl flex flex-col">
+                          <span className="text-[9px] uppercase tracking-wider text-amber-800 font-bold">Tổng hoàn tích lũy</span>
+                          <span className="text-xs font-black text-amber-600 font-mono mt-1">{formatVND(totalRefund)}</span>
+                          <span className="text-[9px] text-amber-600 font-bold mt-0.5">Đã đạt {count}/3 khách hợp lệ</span>
+                        </div>
+                      </div>
+
+                      {/* Visual Milestones timeline */}
+                      <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 space-y-4">
+                        <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Biểu đồ tiến độ hoàn mốc</span>
+                        
+                        {/* Progress Bar Container */}
+                        <div className="relative pt-4 pb-2">
+                          <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                            <div 
+                              className="bg-amber-500 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${progressPercent}%` }}
+                            ></div>
+                          </div>
+
+                          {/* 3 Milestone Node Indicators */}
+                          <div className="absolute top-1.5 left-0 right-0 flex justify-between pointer-events-none">
+                            {/* Mốc 1 */}
+                            <div className="flex flex-col items-center">
+                              <span className={`h-5 w-5 rounded-full border-3 flex items-center justify-center text-[9px] font-bold ${
+                                moc1Unlocked ? 'bg-amber-500 border-white text-white shadow' : 'bg-white border-slate-200 text-slate-400'
+                              }`}>1</span>
+                              <span className="text-[9px] font-bold text-slate-500 mt-1">Mốc 1 (33.3%)</span>
+                            </div>
+
+                            {/* Mốc 2 */}
+                            <div className="flex flex-col items-center">
+                              <span className={`h-5 w-5 rounded-full border-3 flex items-center justify-center text-[9px] font-bold ${
+                                moc2Unlocked ? 'bg-amber-500 border-white text-white shadow' : 'bg-white border-slate-200 text-slate-400'
+                              }`}>2</span>
+                              <span className="text-[9px] font-bold text-slate-500 mt-1">Mốc 2 (33.3%)</span>
+                            </div>
+
+                            {/* Mốc 3 */}
+                            <div className="flex flex-col items-center">
+                              <span className={`h-5 w-5 rounded-full border-3 flex items-center justify-center text-[9px] font-bold ${
+                                moc3Unlocked ? 'bg-amber-500 border-white text-white shadow' : 'bg-white border-slate-200 text-slate-400'
+                              }`}>3</span>
+                              <span className="text-[9px] font-bold text-slate-500 mt-1">Mốc 3 (33.4%)</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Text descriptions of milestones */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-4 border-t border-slate-200/50 text-[10px] text-slate-500 leading-relaxed">
+                          <div className={`p-2.5 rounded-xl border ${moc1Unlocked ? 'bg-emerald-50/40 border-emerald-100 text-slate-700' : 'bg-white border-slate-200/50'}`}>
+                            <p className="font-bold flex items-center gap-1">
+                              <span>Mốc 1: {moc1Unlocked ? '🔓 Đã đạt' : '🔒 Đang khóa'}</span>
+                            </p>
+                            <p className="mt-1">Yêu cầu: ≥ 1 khách mới, doanh thu từ khách mới đạt ≥ {formatVND(billGoc)}</p>
+                            <p className="mt-1 font-semibold text-emerald-600">Quyền lợi: Hoàn {formatVND(Math.round(billGoc * 0.333))}</p>
+                          </div>
+
+                          <div className={`p-2.5 rounded-xl border ${moc2Unlocked ? 'bg-emerald-50/40 border-emerald-100 text-slate-700' : 'bg-white border-slate-200/50'}`}>
+                            <p className="font-bold flex items-center gap-1">
+                              <span>Mốc 2: {moc2Unlocked ? '🔓 Đã đạt' : '🔒 Đang khóa'}</span>
+                            </p>
+                            <p className="mt-1">Yêu cầu: ≥ 2 khách mới, doanh thu từ khách mới đạt ≥ {formatVND(billGoc * 2)}</p>
+                            <p className="mt-1 font-semibold text-emerald-600">Quyền lợi: Hoàn tiếp {formatVND(Math.round(billGoc * 0.333))}</p>
+                          </div>
+
+                          <div className={`p-2.5 rounded-xl border ${moc3Unlocked ? 'bg-emerald-50/40 border-emerald-100 text-slate-700' : 'bg-white border-slate-200/50'}`}>
+                            <p className="font-bold flex items-center gap-1">
+                              <span>Mốc 3: {moc3Unlocked ? '🔓 Đã đạt' : '🔒 Đang khóa'}</span>
+                            </p>
+                            <p className="mt-1">Yêu cầu: ≥ 3 khách mới, doanh thu từ khách mới đạt ≥ {formatVND(targetRevenue)}</p>
+                            <p className="mt-1 font-semibold text-emerald-600">Quyền lợi: Hoàn tiếp {formatVND(Math.round(billGoc * 0.334))}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Referrals List Section */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold flex items-center gap-1">
+                            <Users className="h-3.5 w-3.5 text-indigo-500" />
+                            Danh sách khách hàng giới thiệu ({referrals.length} người)
+                          </span>
+                          {!showAddReferralForm && (
+                            <button
+                              onClick={() => setShowAddReferralForm(true)}
+                              className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded text-[9px] font-bold flex items-center gap-1 shadow-sm transition-colors"
+                            >
+                              <Plus className="h-3 w-3" /> Ghi nhận khách mới
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Add Referral Form Block */}
+                        {showAddReferralForm && (
+                          <form onSubmit={handleAddReferral} className="bg-slate-50 border border-slate-200/80 p-4 rounded-2xl space-y-3 animate-fade-in text-xs text-slate-700">
+                            <p className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">Ghi nhận giao dịch khách mới</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <div>
+                                <label className="text-[9px] text-slate-400 font-bold block mb-1">Tên khách mới *</label>
+                                <input
+                                  type="text"
+                                  placeholder="E.g. Nguyễn Văn A"
+                                  value={newReferralName}
+                                  onChange={(e) => setNewReferralName(e.target.value)}
+                                  required
+                                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[9px] text-slate-400 font-bold block mb-1">Số điện thoại *</label>
+                                <input
+                                  type="text"
+                                  placeholder="E.g. 0912345678"
+                                  value={newReferralPhone}
+                                  onChange={(e) => setNewReferralPhone(e.target.value)}
+                                  required
+                                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-mono"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[9px] text-slate-400 font-bold block mb-1">Tổng tiền thanh toán (VND) *</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="100000"
+                                  value={newReferralBill}
+                                  onChange={(e) => setNewReferralBill(Number(e.target.value))}
+                                  required
+                                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-mono"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex gap-2 justify-end pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setShowAddReferralForm(false)}
+                                className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 rounded-lg text-[10px] font-bold text-slate-700 transition-colors"
+                              >
+                                Hủy
+                              </button>
+                              <button
+                                type="submit"
+                                className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold shadow-sm transition-colors"
+                              >
+                                Thêm và tính toán
+                              </button>
+                            </div>
+                          </form>
+                        )}
+
+                        {referrals.length > 0 ? (
+                          <div className="border border-slate-200/60 rounded-2xl overflow-hidden bg-white">
+                            <table className="w-full text-[11px] text-slate-600">
+                              <thead>
+                                <tr className="bg-slate-50 border-b border-slate-100 font-bold text-slate-500 uppercase tracking-wider text-[9px]">
+                                  <th className="px-4 py-2 text-left">Khách hàng</th>
+                                  <th className="px-4 py-2 text-left">Số điện thoại</th>
+                                  <th className="px-4 py-2 text-right">Bill thanh toán</th>
+                                  <th className="px-4 py-2 text-center">Trạng thái</th>
+                                  <th className="px-4 py-2 text-center">Hành động</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {referrals.map((item, idx) => {
+                                  const isValid = item.billAmount >= 2000000;
+                                  return (
+                                    <tr key={idx} className="hover:bg-slate-50">
+                                      <td className="px-4 py-2.5 font-bold text-slate-800">{item.name}</td>
+                                      <td className="px-4 py-2.5 font-mono text-slate-500">{item.phone}</td>
+                                      <td className="px-4 py-2.5 text-right font-bold text-slate-700 font-mono">{formatVND(item.billAmount)}</td>
+                                      <td className="px-4 py-2.5 text-center">
+                                        <span className={`inline-block px-2 py-0.5 rounded text-[8px] font-bold border ${
+                                          isValid ? 'bg-emerald-50 text-emerald-700 border-emerald-200/50' : 'bg-rose-50 text-rose-600 border-rose-200/30'
+                                        }`}>
+                                          {isValid ? '✓ Hợp lệ' : '✗ Không hợp lệ (dưới 2tr)'}
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-2.5 text-center">
+                                        <button
+                                          onClick={() => {
+                                            if (confirm(`Xóa ghi nhận khách hàng ${item.name}?`)) {
+                                              handleDeleteReferral(idx);
+                                            }
+                                          }}
+                                          className="text-slate-400 hover:text-rose-600 p-1"
+                                          title="Xóa ghi nhận"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="bg-slate-50 rounded-2xl p-6 text-center text-xs text-slate-400 border border-slate-100 italic">
+                            Chưa ghi nhận khách hàng giới thiệu nào. Nhấp vào nút "Ghi nhận khách mới" để bắt đầu tính mốc hoàn.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+
+            {/* KIM SKINCARE PASS MEMBER Section */}
+            <div id="customer-kim-skincare-pass-section" className="space-y-4 pt-6 border-t border-slate-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4.5 w-4.5 text-amber-500 animate-pulse" />
+                  <span className="text-[11px] uppercase tracking-wider text-slate-700 font-bold">Thẻ ưu đãi KIM SKINCARE PASS MEMBER</span>
+                </div>
+                {selectedCustomer.kimSkincarePass && (
+                  <button
+                    onClick={handleCancelKimSkincarePass}
+                    className="text-[10px] text-rose-500 hover:text-rose-700 font-bold hover:underline transition-colors animate-fade-in"
+                  >
+                    Hủy thẻ hội viên
+                  </button>
+                )}
+              </div>
+
+              {!selectedCustomer.kimSkincarePass ? (
+                <div className="bg-gradient-to-br from-amber-500/5 to-amber-600/10 border border-amber-200/40 rounded-2xl p-5 space-y-4 animate-fade-in">
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-slate-800">Đặc Quyền Thẻ Hội Viên Kim Skincare Pass</p>
+                      <p className="text-[10px] text-slate-500 leading-relaxed">
+                        Chỉ với <strong className="text-amber-700">1.000.000đ / 3 tháng</strong>, hội viên được hưởng ưu đãi tinh tế và tiết kiệm tối đa tại Kim Seoul Clinic:
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Highlights Grid matching the image benefits */}
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-white/80 border border-amber-200/30 rounded-xl p-2.5 shadow-sm">
+                      <span className="text-sm font-black text-amber-600 block">Giảm 50%</span>
+                      <span className="text-[8px] text-slate-500 font-bold block leading-tight">Mọi dịch vụ Chăm Sóc Da</span>
+                    </div>
+                    <div className="bg-white/80 border border-amber-200/30 rounded-xl p-2.5 shadow-sm">
+                      <span className="text-sm font-black text-amber-600 block">Giảm 20%</span>
+                      <span className="text-[8px] text-slate-500 font-bold block leading-tight">Dịch vụ Filler & Botox</span>
+                    </div>
+                    <div className="bg-white/80 border border-amber-200/30 rounded-xl p-2.5 shadow-sm">
+                      <span className="text-sm font-black text-amber-600 block">Giảm 10%</span>
+                      <span className="text-[8px] text-slate-500 font-bold block leading-tight">Sản phẩm Chăm Sóc Da</span>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      onClick={handleRegisterKimSkincarePass}
+                      className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 active:scale-95"
+                    >
+                      <Plus className="h-4 w-4 text-slate-950" />
+                      <span>Kích hoạt Kim Skincare Pass (1.000.000đ / 3 tháng)</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4 animate-fade-in">
+                  {/* Digital Gold Card */}
+                  <div className="relative overflow-hidden bg-gradient-to-br from-amber-100 via-amber-200 to-amber-400 rounded-3xl p-6 text-slate-900 border border-amber-300 shadow-xl max-w-sm sm:max-w-md mx-auto aspect-[1.586/1] flex flex-col justify-between">
+                    {/* Watermark Logo K */}
+                    <div className="absolute right-[-20px] bottom-[-20px] opacity-[0.06] text-[200px] font-black leading-none pointer-events-none font-sans select-none">
+                      K
+                    </div>
+                    
+                    {/* Card Header */}
+                    <div className="flex items-center justify-between relative z-10">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-black tracking-[0.2em] text-amber-950 uppercase">KIM SEOUL CLINIC</span>
+                        <span className="text-[5px] tracking-wider text-amber-900 uppercase">Viện Thẩm Mỹ Hoàng Gia</span>
+                      </div>
+                      <span className="px-2 py-0.5 bg-amber-950 text-amber-300 text-[7px] font-black tracking-wider rounded-full uppercase">
+                        ACTIVE MEMBER
+                      </span>
+                    </div>
+
+                    {/* Card Body Title */}
+                    <div className="my-auto pt-2 relative z-10">
+                      <h4 className="text-base font-black tracking-wide text-amber-950 leading-tight">KIM SKINCARE PASS</h4>
+                      <p className="text-[8px] tracking-widest text-amber-900/80 uppercase font-semibold font-mono">ĐẶC QUYỀN HỘI VIÊN VÀNG</p>
+                    </div>
+
+                    {/* Card Footer */}
+                    <div className="flex items-end justify-between pt-2 border-t border-amber-950/20 relative z-10">
+                      <div className="space-y-0.5">
+                        <span className="text-[7px] uppercase tracking-wider text-amber-900/80 block font-bold">Họ tên hội viên</span>
+                        <span className="text-xs font-extrabold text-amber-950 block tracking-tight uppercase">{selectedCustomer.name}</span>
+                      </div>
+                      <div className="text-right space-y-0.5">
+                        <span className="text-[7px] uppercase tracking-wider text-amber-900/80 block font-bold">Hạn sử dụng</span>
+                        <span className="text-[9px] font-bold text-amber-950 block font-mono">
+                          {selectedCustomer.kimSkincarePass.activatedDate} - {selectedCustomer.kimSkincarePass.expiryDate}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Program integration status & alerts */}
+                  <div className="bg-amber-500/5 border border-amber-200/30 rounded-2xl p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span className="text-xs font-bold text-slate-800">Thẻ hội viên vàng hoạt động tốt</span>
+                      </div>
+                      {(() => {
+                        const daysLeft = getDaysRemaining(selectedCustomer.kimSkincarePass.expiryDate);
+                        return (
+                          <p className="text-[10px] text-slate-500">
+                            Còn lại <strong className="text-amber-700 font-mono text-xs">{daysLeft} ngày</strong> sử dụng ưu đãi đặc quyền (Giảm 50% Skincare | 20% Filler/Botox | 10% Sản phẩm).
+                          </p>
+                        );
+                      })()}
+                    </div>
+
+                    <button
+                      onClick={handleRegisterKimSkincarePass}
+                      className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-amber-200 text-amber-700 font-bold text-[10px] rounded-xl shadow-sm transition-all text-center"
+                    >
+                      Gia hạn thẻ (+1.000.000đ)
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* BEFORE / AFTER Photo Comparisons */}
@@ -922,12 +1571,13 @@ export default function CustomersView({
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Tuổi</label>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Ngày tháng năm sinh *</label>
                   <input
-                    id="new-cust-age-input"
-                    type="number"
-                    value={newAge}
-                    onChange={(e) => setNewAge(Number(e.target.value))}
+                    id="new-cust-birthday-input"
+                    type="date"
+                    value={newBirthday}
+                    onChange={(e) => setNewBirthday(e.target.value)}
+                    required
                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-mono"
                   />
                 </div>
@@ -958,6 +1608,7 @@ export default function CustomersView({
                     <option value="Silver Member">Silver Member</option>
                     <option value="Gold Member">Gold Member</option>
                     <option value="Diamond VIP">Diamond VIP</option>
+                    <option value="Diamond VIP Plus">Diamond VIP Plus</option>
                   </select>
                 </div>
               </div>
@@ -986,6 +1637,59 @@ export default function CustomersView({
                   onChange={(e) => setNewNotes(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 h-20 bg-white resize-none"
                 />
+              </div>
+
+              {/* Special program direct links */}
+              <div className="pt-3 border-t border-slate-100 space-y-3">
+                <span className="text-[10px] uppercase font-bold text-amber-600 block">Kích hoạt nhanh chương trình đặc biệt</span>
+                
+                <div className="space-y-2.5 bg-slate-50 p-3 rounded-2xl border border-slate-200/60">
+                  <label className="flex items-start gap-2.5 cursor-pointer text-xs font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={initKimReward}
+                      onChange={(e) => setInitKimReward(e.target.checked)}
+                      className="mt-0.5 accent-amber-500 rounded h-3.5 w-3.5"
+                    />
+                    <div>
+                      <span>Đăng ký KIM REWARD (Hoàn 100% Bill)</span>
+                      <p className="text-[9px] text-slate-400 font-medium leading-tight">Giới thiệu 3 khách, nhận hoàn trả 100% hóa đơn gốc</p>
+                    </div>
+                  </label>
+                  
+                  {initKimReward && (
+                    <div className="pl-6 pt-1 flex items-center gap-2 animate-fade-in">
+                      <span className="text-[10px] text-slate-500 font-medium">Giá trị Bill gốc:</span>
+                      <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1">
+                        <input
+                          type="number"
+                          min="2000000"
+                          max="10000000"
+                          step="500000"
+                          value={initKimRewardBill}
+                          onChange={(e) => setInitKimRewardBill(Number(e.target.value))}
+                          className="bg-transparent border-none p-0 w-24 text-xs font-mono font-bold text-slate-800 text-right focus:outline-none focus:ring-0"
+                        />
+                        <span className="text-slate-400 text-[10px]">đ</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/60">
+                  <label className="flex items-start gap-2.5 cursor-pointer text-xs font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={initKimSkincarePass}
+                      onChange={(e) => setInitKimSkincarePass(e.target.checked)}
+                      className="mt-0.5 accent-amber-500 rounded h-3.5 w-3.5"
+                    />
+                    <div>
+                      <span>Đăng ký KIM SKINCARE PASS (Thẻ Vàng)</span>
+                      <p className="text-[9px] text-slate-400 font-medium leading-tight">Gia nhập Hội viên Vàng giảm giá 50% Skincare, 20% Filler/Botox trong 3 tháng</p>
+                    </div>
+                  </label>
+                </div>
               </div>
 
               <div className="pt-4 flex gap-3 justify-end">
@@ -1045,11 +1749,11 @@ export default function CustomersView({
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Tuổi *</label>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Ngày tháng năm sinh *</label>
                   <input
-                    type="number"
-                    value={editCustAge}
-                    onChange={(e) => setEditCustAge(Number(e.target.value))}
+                    type="date"
+                    value={editCustBirthday}
+                    onChange={(e) => setEditCustBirthday(e.target.value)}
                     required
                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-mono text-slate-800"
                   />
@@ -1079,6 +1783,7 @@ export default function CustomersView({
                     <option value="Silver Member">Silver Member</option>
                     <option value="Gold Member">Gold Member</option>
                     <option value="Diamond VIP">Diamond VIP</option>
+                    <option value="Diamond VIP Plus">Diamond VIP Plus</option>
                   </select>
                 </div>
               </div>
@@ -1156,7 +1861,7 @@ export default function CustomersView({
                   onChange={(e) => handlePkgNameChange(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none"
                 >
-                  {SUGGESTED_PACKAGES.map((pkg, idx) => (
+                  {getDynamicPackages().map((pkg, idx) => (
                     <option key={idx} value={pkg.name}>
                       {pkg.name} ({formatVND(pkg.price)})
                     </option>

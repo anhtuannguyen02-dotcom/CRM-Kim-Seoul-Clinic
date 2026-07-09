@@ -17,7 +17,7 @@ import {
   Trash2,
   Download
 } from 'lucide-react';
-import { Appointment, Customer, ServiceItem, Technician } from '../types';
+import { Appointment, Customer, ServiceItem, Technician, Promotion } from '../types';
 import { exportToExcel } from '../utils/exportToExcel';
 
 interface AppointmentsViewProps {
@@ -25,6 +25,9 @@ interface AppointmentsViewProps {
   customers: Customer[];
   services: ServiceItem[];
   technicians: Technician[];
+  promotions?: Promotion[];
+  onUpdatePromotion?: (id: string, updatedFields: Partial<Promotion>) => void;
+  onAddCustomer?: (customer: Omit<Customer, 'id' | 'totalSpent' | 'totalVisits' | 'treatmentHistory' | 'activePackages' | 'beforeAfterImages'>) => string;
   onAddAppointment: (appt: Omit<Appointment, 'id'>) => void;
   onUpdateAppointmentStatus: (id: string, status: Appointment['status']) => void;
   onUpdateAppointment?: (id: string, updatedFields: Partial<Appointment>) => void;
@@ -36,6 +39,9 @@ export default function AppointmentsView({
   customers,
   services,
   technicians,
+  promotions,
+  onUpdatePromotion,
+  onAddCustomer,
   onAddAppointment,
   onUpdateAppointmentStatus,
   onUpdateAppointment,
@@ -44,6 +50,44 @@ export default function AppointmentsView({
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | Appointment['status']>('All');
   const [showBookingModal, setShowBookingModal] = useState(false);
+
+  // Helper to determine the best discount for a customer on a given service category
+  const getBestDiscountPercent = (customer: Partial<Customer> | null | undefined, serviceCategory: string): { percent: number; source: string } => {
+    if (!customer) return { percent: 0, source: 'Không có chiết khấu' };
+    
+    const discounts: { percent: number; source: string }[] = [];
+
+    // 1. Ưu đãi theo Hạng thẻ thành viên Spa
+    const rank = customer.rank || 'Standard';
+    let rankDiscount = 5; // Standard mặc định
+    if (rank === 'Silver Member') rankDiscount = 10;
+    else if (rank === 'Gold Member') rankDiscount = 15;
+    else if (rank === 'Diamond VIP') rankDiscount = 18;
+    else if (rank === 'Diamond VIP Plus') rankDiscount = 20;
+    
+    discounts.push({ percent: rankDiscount, source: `Ưu đãi hạng thẻ ${rank} (-${rankDiscount}%)` });
+
+    // 2. Ưu đãi theo KIM SKINCARE PASS (nếu đang hoạt động)
+    if (customer.kimSkincarePass && customer.kimSkincarePass.status === 'Hoạt động') {
+      const isSkincareCategory = ['Trẻ hoá da', 'Laser điều trị', 'Body & Tắm trắng', 'Chăm sóc cơ bản', 'Massage', 'Gội đầu', 'Triệt lông'].includes(serviceCategory);
+      const isFillerBotoxCategory = ['Botox Hàn Quốc', 'Filler Hàn Quốc', 'Tiêm thẩm mỹ'].includes(serviceCategory);
+      
+      if (isFillerBotoxCategory) {
+        discounts.push({ percent: 20, source: 'KIM SKINCARE PASS MEMBER (-20% Botox/Filler/Meso)' });
+      } else if (isSkincareCategory) {
+        discounts.push({ percent: 50, source: 'KIM SKINCARE PASS MEMBER (-50% Chăm sóc da)' });
+      }
+    }
+
+    // 3. Khuyến mãi riêng lẻ được gán trực tiếp (nếu có)
+    if (customer.discountPercent) {
+      discounts.push({ percent: customer.discountPercent, source: `Ưu đãi gán riêng (-${customer.discountPercent}%)` });
+    }
+
+    // Chọn mức giảm tốt nhất
+    discounts.sort((a, b) => b.percent - a.percent);
+    return discounts[0] || { percent: 0, source: 'Không có chiết khấu' };
+  };
 
   // Edit Appointment States
   const [showEditModal, setShowEditModal] = useState(false);
@@ -84,9 +128,19 @@ export default function AppointmentsView({
       return;
     }
 
+    const originalAppt = appointments.find(a => a.id === editingApptId);
+    let finalPrice = selectedSrv.price;
+    if (originalAppt) {
+      const selectedCust = customers.find(c => c.id === originalAppt.customerId);
+      const discountResult = getBestDiscountPercent(selectedCust, selectedSrv.category);
+      if (discountResult.percent > 0) {
+        finalPrice = Math.round(finalPrice * (1 - discountResult.percent / 100));
+      }
+    }
+
     onUpdateAppointment(editingApptId, {
       serviceName: selectedSrv.name,
-      price: selectedSrv.price,
+      price: finalPrice,
       technicianId: selectedTech.id,
       technicianName: selectedTech.name,
       date: editDate,
@@ -110,6 +164,7 @@ export default function AppointmentsView({
   const [bookingDate, setBookingDate] = useState('2026-07-08');
   const [bookingTime, setBookingTime] = useState('10:00');
   const [bookingNotes, setBookingNotes] = useState('');
+  const [selectedPromoId, setSelectedPromoId] = useState('');
 
   // Format currency
   const formatVND = (num: number) => {
@@ -156,15 +211,59 @@ export default function AppointmentsView({
       return;
     }
 
-    // Calculate dynamic discount % if available
+    // 1. TIGHTLY LINKED: Dynamically add a real customer in Customers database if 'new' is selected
+    let finalCustomerId = selectedCustomerId;
+    if (selectedCustomerId === 'new') {
+      if (onAddCustomer) {
+        finalCustomerId = onAddCustomer({
+          name: customerName,
+          phone: customerPhone,
+          age: 30,
+          birthday: '1996-01-01',
+          gender: 'Nữ',
+          rank: 'Standard',
+          notes: 'Đăng ký tự động từ đặt lịch hẹn',
+          discountPercent: 0,
+          avatar: customerAvatar
+        });
+      } else {
+        finalCustomerId = `cust_${Date.now()}`;
+      }
+    }
+
+    // 2. TIGHTLY LINKED: Calculate dynamic discount from VIP Rank / Pass
     let finalPrice = selectedSrv.price;
-    const selectedCust = selectedCustomerId !== 'new' ? customers.find(c => c.id === selectedCustomerId) : null;
-    if (selectedCust && selectedCust.discountPercent) {
-      finalPrice = Math.round(finalPrice * (1 - selectedCust.discountPercent / 100));
+    const selectedCust = finalCustomerId ? [customers.find(c => c.id === finalCustomerId), { id: finalCustomerId, name: customerName, phone: customerPhone, rank: 'Standard' as const, avatar: customerAvatar }].find(Boolean) : null;
+    const discountResult = getBestDiscountPercent(selectedCust, selectedSrv.category);
+    
+    if (discountResult.percent > 0) {
+      finalPrice = Math.round(finalPrice * (1 - discountResult.percent / 100));
+    }
+
+    // 3. TIGHTLY LINKED: Calculate voucher discount if applied
+    const selectedPromo = promotions?.find(p => p.id === selectedPromoId);
+    if (selectedPromo) {
+      if (selectedPromo.discountValue.endsWith('%')) {
+        const pct = parseInt(selectedPromo.discountValue.replace('%', ''));
+        if (!isNaN(pct)) {
+          finalPrice = Math.round(finalPrice * (1 - pct / 100));
+        }
+      } else {
+        const valStr = selectedPromo.discountValue.replace(/\./g, '').replace('đ', '');
+        const val = parseInt(valStr);
+        if (!isNaN(val)) {
+          finalPrice = Math.max(0, finalPrice - val);
+        }
+      }
+
+      // Update promotion usage count
+      if (onUpdatePromotion) {
+        onUpdatePromotion(selectedPromo.id, { usageCount: (selectedPromo.usageCount || 0) + 1 });
+      }
     }
 
     onAddAppointment({
-      customerId: selectedCustomerId === 'new' ? `cust_new_${Date.now()}` : selectedCustomerId,
+      customerId: finalCustomerId,
       customerName,
       customerPhone,
       customerAvatar,
@@ -186,6 +285,7 @@ export default function AppointmentsView({
     setNewCustomerPhone('');
     setSelectedServiceId('');
     setSelectedTechnicianId('');
+    setSelectedPromoId('');
     setBookingDate('2026-07-08');
     setBookingTime('10:00');
     setBookingNotes('');
@@ -197,7 +297,7 @@ export default function AppointmentsView({
   };
 
   const getSelectedCustomer = () => {
-    if (selectedCustomerId === 'new') return { name: newCustomerName, phone: newCustomerPhone, rank: 'Standard', avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAPhGoTjtUutxMviwQA6tzgNLgwC3L905UOgKFihCIpyIjjRu_w3A2ql6Ldgf7SyHmH2W81se759xGRrYJpjrK3C6UrOcp8c4RvueFZ2ZjLiwHRpfzcz7uCaRG9fWRxIod9gR11Git42RpGQGQ-46USAyjgDUUR6WmgnV6PSeks4n5nAiH6qog5J5dpE9EIoZkAXx20kT38-oB2-wU8F9dzoq8SY_4L9fHCpTmv00D79cqTPAexmOHg8A' };
+    if (selectedCustomerId === 'new') return { name: newCustomerName, phone: newCustomerPhone, rank: 'Standard' as const, avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAPhGoTjtUutxMviwQA6tzgNLgwC3L905UOgKFihCIpyIjjRu_w3A2ql6Ldgf7SyHmH2W81se759xGRrYJpjrK3C6UrOcp8c4RvueFZ2ZjLiwHRpfzcz7uCaRG9fWRxIod9gR11Git42RpGQGQ-46USAyjgDUUR6WmgnV6PSeks4n5nAiH6qog5J5dpE9EIoZkAXx20kT38-oB2-wU8F9dzoq8SY_4L9fHCpTmv00D79cqTPAexmOHg8A' };
     return customers.find(c => c.id === selectedCustomerId);
   };
 
@@ -721,6 +821,24 @@ export default function AppointmentsView({
                       </div>
                     </div>
 
+                    {/* Select Promo Voucher */}
+                    <div className="border-b border-slate-200/60 pb-4">
+                      <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block mb-1.5">Áp dụng Voucher Khuyến Mãi (Tùy chọn)</span>
+                      <select
+                        id="booking-voucher-select"
+                        value={selectedPromoId}
+                        onChange={(e) => setSelectedPromoId(e.target.value)}
+                        className="w-full px-3 py-2.5 text-xs rounded-xl border border-slate-200 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      >
+                        <option value="">-- Không áp dụng voucher --</option>
+                        {promotions?.filter(p => p.status === 'Hoạt động').map(promo => (
+                          <option key={promo.id} value={promo.id}>
+                            {promo.code} - {promo.title} ({promo.discountValue})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4 border-b border-slate-200/60 pb-4">
                       <div>
                         <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Thời gian trị liệu</span>
@@ -731,17 +849,58 @@ export default function AppointmentsView({
                         {(() => {
                           const cust = getSelectedCustomer();
                           const srv = getSelectedService();
-                          if (cust && 'discountPercent' in cust && cust.discountPercent && srv) {
+                          if (cust && srv) {
                             const originalPrice = srv.price;
-                            const discountPrice = Math.round(originalPrice * (1 - cust.discountPercent / 100));
-                            return (
-                              <div className="mt-1">
-                                <p className="text-[10px] text-slate-400 line-through font-mono leading-none">{formatVND(originalPrice)}</p>
-                                <p className="text-sm font-extrabold text-rose-600 font-mono leading-none mt-1">
-                                  {formatVND(discountPrice)} <span className="text-[9px] text-rose-500 font-bold">(-{cust.discountPercent}%)</span>
-                                </p>
-                              </div>
-                            );
+                            // Check using the custom discount formula
+                            const discountResult = getBestDiscountPercent(cust, srv.category);
+                            let finalPrice = originalPrice;
+                            if (discountResult.percent > 0) {
+                              finalPrice = Math.round(originalPrice * (1 - discountResult.percent / 100));
+                            }
+
+                            // Apply voucher promo
+                            const selectedPromo = promotions?.find(p => p.id === selectedPromoId);
+                            let promoApplied = false;
+                            let promoSource = '';
+                            if (selectedPromo) {
+                              promoApplied = true;
+                              promoSource = `Voucher: ${selectedPromo.code} (${selectedPromo.discountValue})`;
+                              if (selectedPromo.discountValue.endsWith('%')) {
+                                const pct = parseInt(selectedPromo.discountValue.replace('%', ''));
+                                if (!isNaN(pct)) {
+                                  finalPrice = Math.round(finalPrice * (1 - pct / 100));
+                                }
+                              } else {
+                                const valStr = selectedPromo.discountValue.replace(/\./g, '').replace('đ', '');
+                                const val = parseInt(valStr);
+                                if (!isNaN(val)) {
+                                  finalPrice = Math.max(0, finalPrice - val);
+                                }
+                              }
+                            }
+
+                            if (discountResult.percent > 0 || promoApplied) {
+                              return (
+                                <div className="mt-1">
+                                  <p className="text-[10px] text-slate-400 line-through font-mono leading-none">{formatVND(originalPrice)}</p>
+                                  <p className="text-sm font-extrabold text-rose-600 font-mono leading-none mt-1">
+                                    {formatVND(finalPrice)}
+                                  </p>
+                                  <div className="space-y-1 mt-1.5">
+                                    {discountResult.percent > 0 && (
+                                      <span className="text-[8px] bg-amber-500/10 border border-amber-500/20 text-amber-700 px-1.5 py-0.5 rounded-md font-bold block w-max">
+                                        {discountResult.source}
+                                      </span>
+                                    )}
+                                    {promoApplied && (
+                                      <span className="text-[8px] bg-rose-500/10 border border-rose-500/20 text-rose-700 px-1.5 py-0.5 rounded-md font-bold block w-max">
+                                        {promoSource}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            }
                           }
                           return <p className="text-sm font-extrabold text-amber-600 mt-1 font-mono">{getServicePrice()}</p>;
                         })()}
