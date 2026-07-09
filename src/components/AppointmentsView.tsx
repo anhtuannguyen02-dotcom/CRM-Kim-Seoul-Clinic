@@ -156,13 +156,20 @@ export default function AppointmentsView({
       return;
     }
 
+    // Calculate dynamic discount % if available
+    let finalPrice = selectedSrv.price;
+    const selectedCust = selectedCustomerId !== 'new' ? customers.find(c => c.id === selectedCustomerId) : null;
+    if (selectedCust && selectedCust.discountPercent) {
+      finalPrice = Math.round(finalPrice * (1 - selectedCust.discountPercent / 100));
+    }
+
     onAddAppointment({
       customerId: selectedCustomerId === 'new' ? `cust_new_${Date.now()}` : selectedCustomerId,
       customerName,
       customerPhone,
       customerAvatar,
       serviceName: selectedSrv.name,
-      price: selectedSrv.price,
+      price: finalPrice,
       technicianId: selectedTech.id,
       technicianName: selectedTech.name,
       date: bookingDate,
@@ -721,7 +728,23 @@ export default function AppointmentsView({
                       </div>
                       <div>
                         <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Tổng giá trị hóa đơn</span>
-                        <p className="text-sm font-extrabold text-amber-600 mt-1 font-mono">{getServicePrice()}</p>
+                        {(() => {
+                          const cust = getSelectedCustomer();
+                          const srv = getSelectedService();
+                          if (cust && 'discountPercent' in cust && cust.discountPercent && srv) {
+                            const originalPrice = srv.price;
+                            const discountPrice = Math.round(originalPrice * (1 - cust.discountPercent / 100));
+                            return (
+                              <div className="mt-1">
+                                <p className="text-[10px] text-slate-400 line-through font-mono leading-none">{formatVND(originalPrice)}</p>
+                                <p className="text-sm font-extrabold text-rose-600 font-mono leading-none mt-1">
+                                  {formatVND(discountPrice)} <span className="text-[9px] text-rose-500 font-bold">(-{cust.discountPercent}%)</span>
+                                </p>
+                              </div>
+                            );
+                          }
+                          return <p className="text-sm font-extrabold text-amber-600 mt-1 font-mono">{getServicePrice()}</p>;
+                        })()}
                       </div>
                     </div>
 

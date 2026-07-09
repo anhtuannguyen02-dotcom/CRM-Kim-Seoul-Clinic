@@ -142,6 +142,7 @@ export default function CustomersView({
   const [editCustRank, setEditCustRank] = useState<Customer['rank']>('Standard');
   const [editCustNotes, setEditCustNotes] = useState('');
   const [editCustAvatar, setEditCustAvatar] = useState('');
+  const [editCustDiscountPercent, setEditCustDiscountPercent] = useState<number>(0);
 
   // Edit Clinical Photo States
   const [showEditPhotoModal, setShowEditPhotoModal] = useState(false);
@@ -157,6 +158,7 @@ export default function CustomersView({
   const [newGender, setNewGender] = useState<'Nam' | 'Nữ'>('Nữ');
   const [newRank, setNewRank] = useState<Customer['rank']>('Standard');
   const [newNotes, setNewNotes] = useState('');
+  const [newDiscountPercent, setNewDiscountPercent] = useState<number>(0);
 
   // Form states for adding a treatment session note
   const [newTreatmentNote, setNewTreatmentNote] = useState('');
@@ -237,6 +239,7 @@ export default function CustomersView({
       gender: newGender,
       rank: newRank,
       notes: newNotes,
+      discountPercent: Number(newDiscountPercent),
       avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAPhGoTjtUutxMviwQA6tzgNLgwC3L905UOgKFihCIpyIjjRu_w3A2ql6Ldgf7SyHmH2W81se759xGRrYJpjrK3C6UrOcp8c4RvueFZ2ZjLiwHRpfzcz7uCaRG9fWRxIod9gR11Git42RpGQGQ-46USAyjgDUUR6WmgnV6PSeks4n5nAiH6qog5J5dpE9EIoZkAXx20kT38-oB2-wU8F9dzoq8SY_4L9fHCpTmv00D79cqTPAexmOHg8A'
     });
 
@@ -245,6 +248,7 @@ export default function CustomersView({
     setNewPhone('');
     setNewAge(30);
     setNewNotes('');
+    setNewDiscountPercent(0);
   };
 
   // Start edit customer details
@@ -256,6 +260,7 @@ export default function CustomersView({
     setEditCustRank(cust.rank);
     setEditCustNotes(cust.notes);
     setEditCustAvatar(cust.avatar);
+    setEditCustDiscountPercent(cust.discountPercent || 0);
     setShowEditCustomerModal(true);
   };
 
@@ -270,7 +275,8 @@ export default function CustomersView({
       gender: editCustGender,
       rank: editCustRank,
       notes: editCustNotes,
-      avatar: editCustAvatar
+      avatar: editCustAvatar,
+      discountPercent: Number(editCustDiscountPercent)
     });
     setShowEditCustomerModal(false);
     alert('Đồng bộ hồ sơ khách hàng thành công!');
@@ -356,11 +362,19 @@ export default function CustomersView({
       return;
     }
 
-    onAddCustomerPackage(selectedCustomerId, finalName, newPkgSessions, newPkgPrice);
+    const discountRate = selectedCustomer?.discountPercent || 0;
+    const finalPrice = discountRate > 0 ? Math.round(newPkgPrice * (1 - discountRate / 100)) : newPkgPrice;
+
+    onAddCustomerPackage(selectedCustomerId, finalName, newPkgSessions, finalPrice);
     setShowBuyPackageModal(false);
     setCustomPkgName('');
     setNewPkgSessions(5);
     setNewPkgPrice(35000000);
+    if (discountRate > 0) {
+      alert(`Bán gói thành công! Đã áp dụng giảm giá ${discountRate}%, tổng tiền thu thực tế: ${formatVND(finalPrice)}`);
+    } else {
+      alert('Bán gói thành công!');
+    }
   };
 
   // Handle Add Before After Photo
@@ -561,6 +575,11 @@ export default function CustomersView({
                       {selectedCustomer.phone}
                     </span>
                     <span>Tuổi: <strong className="text-slate-700">{selectedCustomer.age}</strong> • Giới tính: <strong className="text-slate-700">{selectedCustomer.gender}</strong></span>
+                    {selectedCustomer.discountPercent ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-rose-50 text-[10px] font-bold text-rose-600 border border-rose-100">
+                        🎁 Giảm trừ đặc cách: {selectedCustomer.discountPercent}%
+                      </span>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -944,6 +963,21 @@ export default function CustomersView({
               </div>
 
               <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Giảm trừ đặc cách % từ khách hàng</label>
+                <input
+                  id="new-cust-discount-input"
+                  type="number"
+                  min="0"
+                  max="100"
+                  placeholder="Ví dụ: 10..."
+                  value={newDiscountPercent}
+                  onChange={(e) => setNewDiscountPercent(Math.max(0, Math.min(100, Number(e.target.value))))}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-mono text-rose-600 font-bold"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Khi khách hàng này thanh toán dịch vụ hoặc mua liệu trình, hệ thống sẽ tự động trừ đi số % giảm giá mặc định này.</p>
+              </div>
+
+              <div>
                 <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Ghi chú lâm sàng / dặn dò da</label>
                 <textarea
                   id="new-cust-notes-input"
@@ -1047,6 +1081,20 @@ export default function CustomersView({
                     <option value="Diamond VIP">Diamond VIP</option>
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Giảm trừ đặc cách % từ khách hàng</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  placeholder="Ví dụ: 10..."
+                  value={editCustDiscountPercent}
+                  onChange={(e) => setEditCustDiscountPercent(Math.max(0, Math.min(100, Number(e.target.value))))}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-mono text-rose-600 font-bold"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Khi khách hàng này thanh toán dịch vụ hoặc mua liệu trình, hệ thống sẽ tự động trừ đi số % giảm giá mặc định này.</p>
               </div>
 
               <div>
@@ -1157,11 +1205,25 @@ export default function CustomersView({
                 </div>
               </div>
 
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Xác nhận thanh toán</span>
-                <p className="text-slate-800 font-bold text-sm">
-                  {formatVND(newPkgPrice)}
-                </p>
+                {selectedCustomer?.discountPercent ? (
+                  <div className="space-y-0.5">
+                    <p className="text-slate-400 line-through text-[11px] font-mono leading-none">
+                      Giá niêm yết: {formatVND(newPkgPrice)}
+                    </p>
+                    <p className="text-rose-600 font-extrabold text-sm font-mono leading-none">
+                      Ưu đãi ({selectedCustomer.discountPercent}%): {formatVND(Math.round(newPkgPrice * (1 - selectedCustomer.discountPercent / 100)))}
+                    </p>
+                    <p className="text-[9px] text-emerald-600 font-semibold mt-1">
+                      ✓ Đã tự động áp dụng chính sách giảm trừ đặc quyền của {selectedCustomer.name}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-slate-800 font-bold text-sm font-mono">
+                    {formatVND(newPkgPrice)}
+                  </p>
+                )}
                 <p className="text-[10px] text-slate-400 mt-1">
                   Giá này sẽ cộng trực tiếp vào Tổng tích luỹ của khách hàng và Doanh thu của hệ thống.
                 </p>

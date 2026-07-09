@@ -239,102 +239,122 @@ export default function CareView({
         {/* Task cards listing */}
         <div id="care-tasks-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {filteredTasks.length > 0 ? (
-            filteredTasks.map((task) => (
-              <div
-                id={`care-task-card-${task.id}`}
-                key={task.id}
-                onClick={() => setSelectedTaskId(task.id)}
-                className={`bg-white rounded-2xl p-5 border cursor-pointer transition-all ${
-                  selectedTaskId === task.id
-                    ? 'border-amber-500 shadow-md ring-1 ring-amber-500/20'
-                    : 'border-slate-200/80 hover:border-slate-300 hover:shadow-sm'
-                }`}
-              >
-                <div className="flex items-start gap-3.5">
-                  <img 
-                    src={task.customerAvatar} 
-                    alt={task.customerName} 
-                    className="h-10 w-10 rounded-full object-cover border border-slate-100 shrink-0"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1.5">
-                      <p className="text-xs font-bold text-slate-900 truncate leading-none">{task.customerName}</p>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span className={`inline-block px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide rounded ${
-                          task.type === 'Sau liệu trình' ? 'bg-indigo-50 text-indigo-700' :
-                          task.type === 'Nhắc lịch dặm' ? 'bg-amber-50 text-amber-700' :
-                          task.type === 'Sinh nhật' ? 'bg-rose-50 text-rose-700' :
-                          'bg-emerald-50 text-emerald-700'
+            filteredTasks.map((task) => {
+              const isOverdue = task.status !== 'Đã hoàn thành' && task.dueDate < '2026-07-08';
+              const isDueToday = task.status !== 'Đã hoàn thành' && task.dueDate === '2026-07-08';
+              return (
+                <div
+                  id={`care-task-card-${task.id}`}
+                  key={task.id}
+                  onClick={() => setSelectedTaskId(task.id)}
+                  className={`rounded-2xl p-5 border cursor-pointer transition-all ${
+                    selectedTaskId === task.id
+                      ? 'border-amber-500 shadow-md ring-1 ring-amber-500/20 bg-white'
+                      : isOverdue
+                      ? 'bg-rose-50/20 border-rose-200 hover:border-rose-300'
+                      : isDueToday
+                      ? 'bg-amber-50/15 border-amber-200 hover:border-amber-300'
+                      : 'bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-sm'
+                  }`}
+                >
+                  <div className="flex items-start gap-3.5">
+                    <img 
+                      src={task.customerAvatar} 
+                      alt={task.customerName} 
+                      className="h-10 w-10 rounded-full object-cover border border-slate-100 shrink-0"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <p className="text-xs font-bold text-slate-900 truncate leading-none">{task.customerName}</p>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {isOverdue && (
+                            <span className="inline-block px-1 py-0.5 text-[8px] font-extrabold uppercase bg-rose-500 text-white rounded animate-pulse mr-1">
+                              ⚠️ Trễ hạn
+                            </span>
+                          )}
+                          {isDueToday && (
+                            <span className="inline-block px-1 py-0.5 text-[8px] font-extrabold uppercase bg-amber-500 text-slate-950 rounded mr-1">
+                              ⏰ Hôm nay
+                            </span>
+                          )}
+                          <span className={`inline-block px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide rounded ${
+                            task.type === 'Sau liệu trình' ? 'bg-indigo-50 text-indigo-700' :
+                            task.type === 'Nhắc lịch dặm' ? 'bg-amber-50 text-amber-700' :
+                            task.type === 'Sinh nhật' ? 'bg-rose-50 text-rose-700' :
+                            'bg-emerald-50 text-emerald-700'
+                          }`}>
+                            {task.type}
+                          </span>
+
+                          {onUpdateTask && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStartEditTask(task);
+                              }}
+                              className="p-1 text-slate-400 hover:text-amber-500 rounded-lg hover:bg-slate-50 transition-colors animate-none"
+                              title="Chỉnh sửa nhiệm vụ"
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+
+                          {onDeleteTask && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`Bạn có chắc chắn muốn xóa nhiệm vụ chăm sóc cho khách hàng "${task.customerName}" không?`)) {
+                                  onDeleteTask(task.id);
+                                  if (selectedTaskId === task.id) {
+                                    setSelectedTaskId(null);
+                                  }
+                                  alert('Đã xóa nhiệm vụ!');
+                                }
+                              }}
+                              className="p-1 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-slate-50 transition-colors"
+                              title="Xóa nhiệm vụ"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-2 font-medium leading-relaxed font-sans min-h-[30px] line-clamp-2">
+                        {task.description}
+                      </p>
+
+                      <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                        <span className={`font-medium font-mono flex items-center gap-1 ${
+                          isOverdue ? 'text-rose-600 font-bold' : isDueToday ? 'text-amber-600 font-bold' : 'text-slate-400'
                         }`}>
-                          {task.type}
+                          <Clock className={`h-3.5 w-3.5 ${isOverdue ? 'text-rose-500' : 'text-slate-400'}`} />
+                          Hạn: {task.dueDate}
                         </span>
 
-                        {onUpdateTask && (
+                        {task.status !== 'Đã hoàn thành' ? (
                           <button
+                            id={`btn-complete-quick-${task.id}`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleStartEditTask(task);
+                              onCompleteTask(task.id);
                             }}
-                            className="p-1 text-slate-400 hover:text-amber-500 rounded-lg hover:bg-slate-50 transition-colors animate-none"
-                            title="Chỉnh sửa nhiệm vụ"
+                            className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-[9px] rounded-lg transition-colors flex items-center gap-1"
                           >
-                            <Edit3 className="h-3.5 w-3.5" />
+                            <Check className="h-3 w-3" />
+                            Hoàn thành
                           </button>
-                        )}
-
-                        {onDeleteTask && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (confirm(`Bạn có chắc chắn muốn xóa nhiệm vụ chăm sóc cho khách hàng "${task.customerName}" không?`)) {
-                                onDeleteTask(task.id);
-                                if (selectedTaskId === task.id) {
-                                  setSelectedTaskId(null);
-                                }
-                                alert('Đã xóa nhiệm vụ!');
-                              }
-                            }}
-                            className="p-1 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-slate-50 transition-colors"
-                            title="Xóa nhiệm vụ"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                        ) : (
+                          <span className="text-emerald-600 font-bold flex items-center gap-1">
+                            ✓ Đã xong
+                          </span>
                         )}
                       </div>
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-2 font-medium leading-relaxed font-sans min-h-[30px] line-clamp-2">
-                      {task.description}
-                    </p>
-
-                    <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between text-[10px]">
-                      <span className="text-slate-400 font-medium font-mono flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5 text-slate-400" />
-                        Hạn: {task.dueDate}
-                      </span>
-
-                      {task.status !== 'Đã hoàn thành' ? (
-                        <button
-                          id={`btn-complete-quick-${task.id}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onCompleteTask(task.id);
-                          }}
-                          className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-[9px] rounded-lg transition-colors flex items-center gap-1"
-                        >
-                          <Check className="h-3 w-3" />
-                          Hoàn thành
-                        </button>
-                      ) : (
-                        <span className="text-emerald-600 font-bold flex items-center gap-1">
-                          ✓ Đã xong
-                        </span>
-                      )}
-                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="col-span-2 bg-white rounded-2xl p-12 text-center text-xs text-slate-400">
               Không tìm thấy nhiệm vụ chăm sóc

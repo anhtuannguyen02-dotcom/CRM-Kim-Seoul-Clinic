@@ -12,7 +12,8 @@ import {
   Clock, 
   UserPlus, 
   ArrowUpRight,
-  Sparkles
+  Sparkles,
+  AlertCircle
 } from 'lucide-react';
 import { Appointment, Technician, CRMTask, ClinicProfile } from '../types';
 import { REVENUE_WEEK_DATA } from '../data';
@@ -112,6 +113,62 @@ export default function DashboardView({
           />
         </div>
       </div>
+
+      {/* Dynamic Alerts & Reminders Section */}
+      {(crmTasks.filter(t => t.status !== 'Đã hoàn thành' && t.dueDate < '2026-07-08').length > 0 || 
+        crmTasks.filter(t => t.status !== 'Đã hoàn thành' && t.dueDate >= '2026-07-08' && t.dueDate <= '2026-07-11').length > 0 ||
+        appointments.filter(a => (a.status === 'Chờ phục vụ' || a.status === 'Đang thực hiện') && (a.date === '2026-07-08' || a.date === '2026-07-09')).length > 0) && (
+        <div id="dashboard-live-alerts" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Overdue Warnings */}
+          {crmTasks.filter(t => t.status !== 'Đã hoàn thành' && t.dueDate < '2026-07-08').length > 0 && (
+            <div id="overdue-alerts-card" className="bg-rose-50/50 border border-rose-100 rounded-3xl p-5 shadow-sm flex items-start gap-3.5">
+              <div className="p-2.5 bg-rose-500/10 rounded-2xl text-rose-600 shrink-0">
+                <AlertCircle className="h-5 w-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-xs font-bold text-rose-950 uppercase tracking-wider">Cảnh báo tác vụ chưa hoàn thành (Quá hạn)</h4>
+                <p className="text-xs text-rose-700/90 mt-1.5 leading-relaxed">
+                  Phát hiện <span className="font-bold text-rose-900">{crmTasks.filter(t => t.status !== 'Đã hoàn thành' && t.dueDate < '2026-07-08').length} tác vụ chăm sóc</span> quá hạn liên hệ phản hồi hoặc nhắc nhở phục hồi. Vui lòng hoàn thành để không ảnh hưởng đến trải nghiệm khách hàng.
+                </p>
+                <div className="mt-3.5 flex gap-2">
+                  <button 
+                    id="resolve-overdue-btn"
+                    onClick={() => onNavigate('care')}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold rounded-xl transition-colors shadow-sm shadow-rose-600/10"
+                  >
+                    Xử lý chăm sóc khách hàng
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Upcoming Reminders */}
+          {(crmTasks.filter(t => t.status !== 'Đã hoàn thành' && t.dueDate >= '2026-07-08' && t.dueDate <= '2026-07-11').length > 0 ||
+            appointments.filter(a => (a.status === 'Chờ phục vụ' || a.status === 'Đang thực hiện') && (a.date === '2026-07-08' || a.date === '2026-07-09')).length > 0) && (
+            <div id="upcoming-reminders-card" className="bg-amber-50/50 border border-amber-100 rounded-3xl p-5 shadow-sm flex items-start gap-3.5">
+              <div className="p-2.5 bg-amber-500/10 rounded-2xl text-amber-600 shrink-0">
+                <Clock className="h-5 w-5 animate-pulse" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wider">Nhắc nhanh tác vụ & lịch hẹn sắp đến</h4>
+                <p className="text-xs text-amber-700/90 mt-1.5 leading-relaxed">
+                  Có <span className="font-bold text-amber-900">{crmTasks.filter(t => t.status !== 'Đã hoàn thành' && t.dueDate >= '2026-07-08' && t.dueDate <= '2026-07-11').length} tác vụ chăm sóc</span> và <span className="font-bold text-amber-900">{appointments.filter(a => (a.status === 'Chờ phục vụ' || a.status === 'Đang thực hiện') && (a.date === '2026-07-08' || a.date === '2026-07-09')).length} lịch hẹn</span> hôm nay và 3 ngày tới sắp đến hạn cần chuẩn bị phòng máy & kỹ thuật viên đón tiếp.
+                </p>
+                <div className="mt-3.5 flex gap-2">
+                  <button 
+                    id="view-reminders-btn"
+                    onClick={() => onNavigate('care')}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 text-[11px] font-bold rounded-xl transition-colors"
+                  >
+                    Mở bảng Care & Nhắc nhở
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 4 Stats Cards */}
       <div id="stats-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

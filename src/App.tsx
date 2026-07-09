@@ -866,6 +866,8 @@ export default function App() {
           notificationsCount={notificationsCount} 
           clearNotifications={clearNotifications} 
           clinicProfile={clinicProfile}
+          crmTasks={crmTasks}
+          appointments={appointments}
         />
 
         {/* Content canvas container */}

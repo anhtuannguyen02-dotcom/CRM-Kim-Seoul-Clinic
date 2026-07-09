@@ -27,6 +27,7 @@ export interface Customer {
     after: string;
     title: string;
   }[];
+  discountPercent?: number;
 }
 
 export interface Appointment {
