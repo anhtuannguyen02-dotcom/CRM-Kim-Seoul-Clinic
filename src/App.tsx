@@ -106,7 +106,16 @@ export default function App() {
   // Core Data States (load from localStorage or default to initial data)
   const [services, setServices] = useState<ServiceItem[]>(() => {
     const saved = localStorage.getItem('kimseoul_services');
-    return saved ? JSON.parse(saved) : INITIAL_SERVICES;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (!parsed.some((s: any) => s.id === 'srv_sk1')) {
+          return INITIAL_SERVICES;
+        }
+        return parsed;
+      } catch (e) {}
+    }
+    return INITIAL_SERVICES;
   });
 
   const [technicians, setTechnicians] = useState<Technician[]>(() => {

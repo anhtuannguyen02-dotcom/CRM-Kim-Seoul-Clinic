@@ -38,71 +38,7 @@ interface CustomersViewProps {
   onDeleteCustomer?: (id: string) => void;
 }
 
-const SUGGESTED_PACKAGES = [
-  // --- MASSAGE CATEGORY ---
-  { name: 'Massage Body Seoul Heal 60p - Combo 10 Buổi (Tặng 10 buổi gội đầu)', sessions: 10, price: 3500000 },
-  { name: 'Massage Trị Liệu Seoul VIP - Combo 10 Buổi (Tặng 10 buổi gội đầu)', sessions: 10, price: 4500000 },
-
-  // --- GỘI ĐẦU CATEGORY ---
-  { name: 'Gội trải nghiệm - Buổi lẻ', sessions: 1, price: 39000 },
-  { name: 'Mang dầu đến gội - Gói 10 buổi (Tặng 1)', sessions: 11, price: 559000 },
-  { name: 'Gội dầu thường - Gói 10 buổi (Tặng 1)', sessions: 11, price: 559000 },
-  { name: 'Gội dầu cặp - Gói 10 buổi', sessions: 10, price: 799000 },
-
-  // --- TRIỆT LÔNG CATEGORY ---
-  { name: 'Triệt lông Toàn Thân - Gói 10 Buổi', sessions: 10, price: 13000000 },
-  { name: 'Triệt lông Nửa Cánh Tay - Gói 10 Buổi', sessions: 10, price: 1800000 },
-  { name: 'Triệt lông Cả Cánh Tay - Gói 10 Buổi', sessions: 10, price: 3000000 },
-  { name: 'Triệt lông Nửa Chân - Gói 10 Buổi', sessions: 10, price: 2800000 },
-  { name: 'Triệt lông Lưng/Gáy - Gói 10 Buổi', sessions: 10, price: 3000000 },
-  { name: 'Triệt lông Ngực - Gói 10 Buổi', sessions: 10, price: 2000000 },
-  { name: 'Triệt lông Bụng - Gói 10 Buổi', sessions: 10, price: 2000000 },
-  { name: 'Triệt lông Mặt - Gói 10 Buổi', sessions: 10, price: 1000000 },
-  { name: 'Triệt lông Nách - Gói 10 Buổi', sessions: 10, price: 800000 },
-  { name: 'Triệt lông Râu Cằm - Gói 10 Buổi', sessions: 10, price: 1500000 },
-  { name: 'Triệt lông Râu Quai Nón - Gói 10 Buổi', sessions: 10, price: 3000000 },
-  { name: 'Triệt lông Bikini Toàn Bộ - Gói 10 Buổi', sessions: 10, price: 3000000 },
-
-  // --- BOTOX CATEGORY ---
-  { name: 'Botox Xóa Nhăn Trán (Gói Chuyên Viên)', sessions: 1, price: 2500000 },
-  { name: 'Botox Xóa Nhăn Trán (Gói Bác Sĩ)', sessions: 1, price: 3500000 },
-  { name: 'Botox Trị Hôi Nách (Gói Chuyên Viên)', sessions: 1, price: 3500000 },
-  { name: 'Botox Trị Hôi Nách (Gói Bác Sĩ)', sessions: 1, price: 4500000 },
-  { name: 'Botox Xóa Nhăn Mắt Chân Chim (Gói Chuyên Viên)', sessions: 1, price: 2500000 },
-  { name: 'Botox Xóa Nhăn Mắt Chân Chim (Gói Bác Sĩ)', sessions: 1, price: 3500000 },
-  { name: 'Botox Thon Gọn Bắp Tay (Gói Chuyên Viên)', sessions: 1, price: 4500000 },
-  { name: 'Botox Thon Gọn Bắp Tay (Gói Bác Sĩ)', sessions: 1, price: 5500000 },
-  { name: 'Botox Thon Gọn Hàm (Gói Chuyên Viên)', sessions: 1, price: 2500000 },
-  { name: 'Botox Thon Gọn Hàm (Gói Bác Sĩ)', sessions: 1, price: 3500000 },
-  { name: 'Botox Thon Gọn Vai (Gói Chuyên Viên)', sessions: 1, price: 4500000 },
-  { name: 'Botox Thon Gọn Vai (Gói Bác Sĩ)', sessions: 1, price: 5500000 },
-  { name: 'Botox Lifting Toàn Mặt (Gói Chuyên Viên)', sessions: 1, price: 4500000 },
-  { name: 'Botox Lifting Toàn Mặt (Gói Bác Sĩ)', sessions: 1, price: 5500000 },
-
-  // --- FILLER CATEGORY ---
-  { name: 'Filler Môi 1-2 CC (Gói Chuyên Viên)', sessions: 1, price: 3000000 },
-  { name: 'Filler Môi 1-2 CC (Gói Bác Sĩ)', sessions: 1, price: 5000000 },
-  { name: 'Filler Rãnh Cằm 2-4 CC (Gói Chuyên Viên)', sessions: 1, price: 6000000 },
-  { name: 'Filler Rãnh Cằm 2-4 CC (Gói Bác Sĩ)', sessions: 1, price: 8000000 },
-  { name: 'Filler Má Baby 5-7 CC (Gói Chuyên Viên)', sessions: 1, price: 12000000 },
-  { name: 'Filler Má Baby 5-7 CC (Gói Bác Sĩ)', sessions: 1, price: 15250000 },
-  { name: 'Filler Thái Dương 1-2 CC (Gói Chuyên Viên)', sessions: 1, price: 3000000 },
-  { name: 'Filler Thái Dương 1-2 CC (Gói Bác Sĩ)', sessions: 1, price: 4250000 },
-  { name: 'Filler Rãnh Cười 1-2 CC (Gói Chuyên Viên)', sessions: 1, price: 3000000 },
-  { name: 'Filler Rãnh Cười 1-2 CC (Gói Bác Sĩ)', sessions: 1, price: 4750000 },
-  { name: 'Filler Hốc Mắt 1-2 CC (Gói Chuyên Viên)', sessions: 1, price: 3000000 },
-  { name: 'Filler Hốc Mắt 1-2 CC (Gói Bác Sĩ)', sessions: 1, price: 4250000 },
-  { name: 'Filler Cằm 1-2 CC (Gói Chuyên Viên)', sessions: 1, price: 3000000 },
-  { name: 'Filler Cằm 1-2 CC (Gói Bác Sĩ)', sessions: 1, price: 4250000 },
-  { name: 'Filler Châu Âu (Gói Chuyên Viên)', sessions: 1, price: 9000000 },
-  { name: 'Filler Châu Âu (Gói Bác Sĩ)', sessions: 1, price: 12500000 },
-
-  // --- ORIGINAL CLINICAL HIGH-TECH ---
-  { name: 'Combo Trẻ Hoá Toàn Diện 5 Buổi', sessions: 5, price: 35000000 },
-  { name: 'Thermage FLX Nâng Cơ VIP 3 Buổi', sessions: 3, price: 150000000 },
-  { name: 'Meso Sáng Da Căng Bóng 6 Buổi', sessions: 6, price: 48000000 },
-  { name: 'Laser Pico Sạch Nám Sạm 10 Buổi', sessions: 10, price: 38000000 }
-];
+// Packages are now fully dynamically generated from the service database in SettingsView
 
 const PHOTO_TEMPLATES = [
   {
@@ -262,44 +198,89 @@ export default function CustomersView({
 
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
-  // Dynamically generate packages by combining static SUGGESTED_PACKAGES and manual services configured in settings
+  // Dynamically generate packages 100% bound to services prop for real-time synchronization
   const getDynamicPackages = () => {
-    const pkgs = [
+    const pkgs: { name: string; sessions: number; price: number }[] = [
       { name: 'Gói KIM REWARD 2.000.000đ', sessions: 1, price: 2000000 },
       { name: 'Gói KIM REWARD 3.000.000đ', sessions: 1, price: 3000000 },
       { name: 'Gói KIM REWARD 5.000.000đ', sessions: 1, price: 5000000 },
       { name: 'Gói KIM REWARD 8.000.000đ', sessions: 1, price: 8000000 },
       { name: 'Gói KIM REWARD 10.000.000đ', sessions: 1, price: 10000000 },
-      ...SUGGESTED_PACKAGES
     ];
+
     if (services) {
       services.forEach(srv => {
-        // Avoid duplicate names if they are already in SUGGESTED_PACKAGES
-        const hasExactMatch = SUGGESTED_PACKAGES.some(p => p.name === srv.name || p.name.includes(srv.name));
-        if (!hasExactMatch) {
-          // Generate a single session package
-          pkgs.push({
-            name: `${srv.name} (Buổi lẻ)`,
-            sessions: 1,
-            price: srv.price
-          });
-          
-          // Generate a 5-session package (with 5% discount)
-          pkgs.push({
-            name: `Gói 5 buổi ${srv.name}`,
-            sessions: 5,
-            price: Math.round(srv.price * 5 * 0.95)
-          });
-
-          // Generate a 10-session package (with 10% discount)
-          pkgs.push({
-            name: `Gói 10 buổi ${srv.name}`,
-            sessions: 10,
-            price: Math.round(srv.price * 10 * 0.90)
-          });
+        // Clinical / High-Tech Original Services packages
+        if (srv.id === 'srv_1' || srv.name === 'Nâng cơ Ultherapy VIP') {
+          pkgs.push({ name: `${srv.name} (Buổi lẻ)`, sessions: 1, price: srv.price });
+          pkgs.push({ name: `Thermage FLX Nâng Cơ VIP 3 Buổi`, sessions: 3, price: 150000000 });
+        } else if (srv.id === 'srv_2' || srv.name === 'Trẻ hoá da Thermage FLX 900') {
+          pkgs.push({ name: `${srv.name} (Buổi lẻ)`, sessions: 1, price: srv.price });
+          pkgs.push({ name: `Combo Trẻ Hoá Toàn Diện 5 Buổi`, sessions: 5, price: 35000000 });
+        } else if (srv.id === 'srv_3' || srv.name === 'Tiêm Meso căng bóng HA căng mọng') {
+          pkgs.push({ name: `${srv.name} (Buổi lẻ)`, sessions: 1, price: srv.price });
+          pkgs.push({ name: `Meso Sáng Da Căng Bóng 6 Buổi`, sessions: 6, price: 48000000 });
+        } else if (srv.id === 'srv_4' || srv.name === 'Laser Pico Premium trị nám sạm') {
+          pkgs.push({ name: `${srv.name} (Buổi lẻ)`, sessions: 1, price: srv.price });
+          pkgs.push({ name: `Laser Pico Sạch Nám Sạm 10 Buổi`, sessions: 10, price: 38000000 });
+        }
+        // I. CHĂM SÓC DA – SEOUL SKINCARE
+        else if (srv.name === 'Chăm sóc da cơ bản') {
+          pkgs.push({ name: `${srv.name} (Buổi lẻ)`, sessions: 1, price: srv.price });
+          pkgs.push({ name: `${srv.name} - Gói 5 buổi (Tặng 1 buổi)`, sessions: 6, price: srv.price * 5 });
+          pkgs.push({ name: `${srv.name} - Gói 10 buổi (Tặng 3 buổi)`, sessions: 13, price: srv.price * 10 });
+        } else if (srv.name === 'Chăm sóc da chuyên sâu') {
+          pkgs.push({ name: `${srv.name} (Buổi lẻ)`, sessions: 1, price: srv.price });
+          pkgs.push({ name: `${srv.name} - Gói 5 buổi (Tặng 1 buổi)`, sessions: 6, price: srv.price * 5 });
+          pkgs.push({ name: `${srv.name} - Gói 10 buổi (Tặng 3 buổi)`, sessions: 13, price: srv.price * 10 });
+        }
+        // II. CẤY TRẮNG NANO – CĂNG BÓNG
+        else if (srv.name === 'Cấy trắng Nano buổi lẻ') {
+          pkgs.push({ name: `${srv.name}`, sessions: 1, price: srv.price });
+          pkgs.push({ name: `Liệu trình ${srv.name} 4 buổi`, sessions: 4, price: srv.price * 4 });
+          pkgs.push({ name: `Liệu trình ${srv.name} mua 4 buổi (Tặng 1 buổi)`, sessions: 5, price: srv.price * 4 });
+          pkgs.push({ name: `Liệu trình ${srv.name} 5 buổi`, sessions: 5, price: srv.price * 5 });
+        }
+        // III. PEEL TẢO
+        else if (srv.name === 'Peel tảo không bong + Cấy trắng Nano') {
+          pkgs.push({ name: `${srv.name} (Buổi lẻ)`, sessions: 1, price: srv.price });
+          pkgs.push({ name: `Gói 5 buổi ${srv.name} (Tặng 1 buổi)`, sessions: 6, price: srv.price * 5 });
+          pkgs.push({ name: `Gói 10 buổi ${srv.name} (Tặng 3 buổi)`, sessions: 13, price: srv.price * 10 });
+        }
+        // IV. MASSAGE BODY
+        else if (srv.category === 'Massage') {
+          pkgs.push({ name: `${srv.name} (Buổi lẻ)`, sessions: 1, price: srv.price });
+          pkgs.push({ name: `${srv.name} - Combo 10 Buổi (Tặng 10 buổi gội đầu)`, sessions: 10, price: srv.price * 10 });
+        }
+        // V. GỘI ĐẦU
+        else if (srv.category === 'Gội đầu') {
+          if (srv.name === 'Gội trải nghiệm') {
+            pkgs.push({ name: `${srv.name} - Buổi lẻ`, sessions: 1, price: srv.price });
+          } else if (srv.name === 'Mang dầu đến gội' || srv.name === 'Gội đầu thường') {
+            pkgs.push({ name: `${srv.name} - Buổi lẻ`, sessions: 1, price: srv.price });
+            pkgs.push({ name: `${srv.name} - Gói 10 buổi (Tặng 1)`, sessions: 11, price: Math.round(srv.price * 10 * 0.81) });
+          } else if (srv.name === 'Gội đầu cấp') {
+            pkgs.push({ name: `${srv.name} - Buổi lẻ`, sessions: 1, price: srv.price });
+            pkgs.push({ name: `${srv.name} - Gói 10 buổi`, sessions: 10, price: Math.round(srv.price * 10 * 0.898) });
+          } else {
+            pkgs.push({ name: `${srv.name} (Buổi lẻ)`, sessions: 1, price: srv.price });
+          }
+        }
+        // VI. TRIỆT LÔNG – SEOUL SMOOTH SKIN
+        else if (srv.category === 'Triệt lông') {
+          const rawName = srv.name.replace(' (Buổi lẻ)', '');
+          pkgs.push({ name: `${srv.name}`, sessions: 1, price: srv.price });
+          pkgs.push({ name: `${rawName} - Gói 10 Buổi`, sessions: 10, price: srv.price * 10 });
+        }
+        // VII & VIII & OTHERS (including Botox, Filler, etc.)
+        else {
+          pkgs.push({ name: `${srv.name} (Buổi lẻ)`, sessions: 1, price: srv.price });
+          pkgs.push({ name: `Gói 5 buổi ${srv.name}`, sessions: 5, price: Math.round(srv.price * 5 * 0.95) });
+          pkgs.push({ name: `Gói 10 buổi ${srv.name}`, sessions: 10, price: Math.round(srv.price * 10 * 0.90) });
         }
       });
     }
+
     return pkgs;
   };
 
