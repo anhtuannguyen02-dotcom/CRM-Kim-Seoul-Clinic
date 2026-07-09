@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Search, Settings, HelpCircle, ChevronDown, CheckCircle, Clock, AlertCircle, AlertTriangle, Calendar } from 'lucide-react';
+import { Bell, Search, Settings, HelpCircle, ChevronDown, CheckCircle, Clock, AlertCircle, AlertTriangle, Calendar, X, User, MapPin, Phone, Save } from 'lucide-react';
 
 import { ClinicProfile, CRMTask, Appointment } from '../types';
 
@@ -7,14 +7,55 @@ interface TopbarProps {
   notificationsCount: number;
   clearNotifications: () => void;
   clinicProfile: ClinicProfile;
+  onUpdateClinicProfile?: (profile: ClinicProfile) => void;
   crmTasks: CRMTask[];
   appointments: Appointment[];
 }
 
-export default function Topbar({ notificationsCount, clearNotifications, clinicProfile, crmTasks, appointments }: TopbarProps) {
+export default function Topbar({ notificationsCount, clearNotifications, clinicProfile, onUpdateClinicProfile, crmTasks, appointments }: TopbarProps) {
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Edit Profile Form State
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [editManagerName, setEditManagerName] = useState(clinicProfile.managerName);
+  const [editManagerAvatar, setEditManagerAvatar] = useState(clinicProfile.managerAvatar);
+  const [editBranchName, setEditBranchName] = useState(clinicProfile.branchName || 'Vinhome Smart City');
+  const [editClinicName, setEditClinicName] = useState(clinicProfile.name);
+  const [editClinicAddress, setEditClinicAddress] = useState(clinicProfile.address);
+  const [editClinicPhone, setEditClinicPhone] = useState(clinicProfile.phone);
+  const [editClinicHours, setEditClinicHours] = useState(clinicProfile.hours);
+
+  const handleOpenEditModal = () => {
+    setEditManagerName(clinicProfile.managerName);
+    setEditManagerAvatar(clinicProfile.managerAvatar);
+    setEditBranchName(clinicProfile.branchName || 'Vinhome Smart City');
+    setEditClinicName(clinicProfile.name);
+    setEditClinicAddress(clinicProfile.address);
+    setEditClinicPhone(clinicProfile.phone);
+    setEditClinicHours(clinicProfile.hours);
+    setShowEditProfileModal(true);
+    setShowProfileMenu(false);
+  };
+
+  const handleSaveProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (onUpdateClinicProfile) {
+      onUpdateClinicProfile({
+        name: editClinicName,
+        address: editClinicAddress,
+        phone: editClinicPhone,
+        hours: editClinicHours,
+        managerName: editManagerName,
+        managerAvatar: editManagerAvatar,
+        logoUrl: clinicProfile.logoUrl,
+        dashboardImageUrl: clinicProfile.dashboardImageUrl,
+        branchName: editBranchName
+      });
+    }
+    setShowEditProfileModal(false);
+  };
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -224,10 +265,13 @@ export default function Topbar({ notificationsCount, clearNotifications, clinicP
           {showProfileMenu && (
             <div id="topbar-profile-dropdown" className="absolute right-0 mt-3 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl py-2 z-50 animate-fade-in text-xs text-slate-700">
               <div className="px-4 py-2 border-b border-slate-100">
-                <span className="font-bold text-slate-900 block">Kim Seoul Premium</span>
-                <span className="text-[10px] text-slate-400">Chi nhánh Quận 1, Tp.HCM</span>
+                <span className="font-bold text-slate-900 block">{clinicProfile.name.split('-')[0].trim()}</span>
+                <span className="text-[10px] text-slate-400">Chi nhánh {clinicProfile.branchName || 'Vinhome Smart City'}</span>
               </div>
-              <button className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors flex items-center gap-2">
+              <button 
+                onClick={handleOpenEditModal}
+                className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors flex items-center gap-2"
+              >
                 <Settings className="h-4 w-4 text-slate-400" />
                 <span>Cài đặt cá nhân</span>
               </button>
@@ -239,6 +283,183 @@ export default function Topbar({ notificationsCount, clearNotifications, clinicP
           )}
         </div>
       </div>
+
+      {/* TIGHTLY LINKED: Personal Profile Settings Modal */}
+      {showEditProfileModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-lg overflow-hidden animate-scale-in">
+            {/* Modal Header */}
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-500/5 to-amber-600/5 animate-fade-in">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-amber-500/10 rounded-xl">
+                  <Settings className="h-5 w-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Cài đặt cá nhân & Chi nhánh</h3>
+                  <p className="text-[10px] text-slate-400">Đồng bộ thông tin quản lý và cơ sở thẩm mỹ</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowEditProfileModal(false)}
+                className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-lg transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Modal Body / Form */}
+            <form onSubmit={handleSaveProfile} className="p-6 space-y-4 text-xs text-slate-700">
+              
+              {/* Section 1: Personal Manager Profile */}
+              <div className="space-y-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 block border-b border-slate-100 pb-1.5">Thông tin Quản lý</span>
+                
+                <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                  <img 
+                    src={editManagerAvatar} 
+                    alt="Avatar preview" 
+                    className="h-14 w-14 rounded-full object-cover border-2 border-amber-500/20 shadow-inner shrink-0 animate-fade-in"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=600&h=600';
+                    }}
+                  />
+                  <div className="flex-1 space-y-1">
+                    <span className="text-[9px] uppercase tracking-wider font-bold text-slate-400">Chọn nhanh ảnh đại diện</span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditManagerAvatar('https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=600&h=600')}
+                        className={`text-[10px] px-2.5 py-1 rounded-lg border transition-all ${editManagerAvatar.includes('photo-1573496359142') ? 'border-amber-500 bg-amber-50 text-amber-700 font-medium' : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'}`}
+                      >
+                        Nữ (Mặc định)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditManagerAvatar('https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=600&h=600')}
+                        className={`text-[10px] px-2.5 py-1 rounded-lg border transition-all ${editManagerAvatar.includes('photo-1560250097') ? 'border-amber-500 bg-amber-50 text-amber-700 font-medium' : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'}`}
+                      >
+                        Nam
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 mb-1">Họ và tên Quản lý</label>
+                    <input
+                      type="text"
+                      value={editManagerName}
+                      onChange={(e) => setEditManagerName(e.target.value)}
+                      placeholder="Nhập tên quản lý..."
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-1 focus:ring-amber-500 focus:outline-none text-slate-700 font-medium"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 mb-1">Đường dẫn ảnh chân dung (URL)</label>
+                    <input
+                      type="text"
+                      value={editManagerAvatar}
+                      onChange={(e) => setEditManagerAvatar(e.target.value)}
+                      placeholder="Nhập link ảnh..."
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-1 focus:ring-amber-500 focus:outline-none text-slate-700 font-medium"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Clinic Location Profile */}
+              <div className="space-y-3 pt-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 block border-b border-slate-100 pb-1.5">Thông tin Chi nhánh & Cơ sở</span>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 mb-1">Tên Thương Hiệu</label>
+                    <input
+                      type="text"
+                      value={editClinicName}
+                      onChange={(e) => setEditClinicName(e.target.value)}
+                      placeholder="Nhập tên thương hiệu..."
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-1 focus:ring-amber-500 focus:outline-none text-slate-700 font-medium"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 mb-1">Khu Vực / Tên Chi Nhánh</label>
+                    <input
+                      type="text"
+                      value={editBranchName}
+                      onChange={(e) => setEditBranchName(e.target.value)}
+                      placeholder="Ví dụ: Vinhome Smart City"
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-1 focus:ring-amber-500 focus:outline-none text-slate-700 font-medium"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 mb-1">Địa chỉ chi tiết</label>
+                  <input
+                    type="text"
+                    value={editClinicAddress}
+                    onChange={(e) => setEditClinicAddress(e.target.value)}
+                    placeholder="Nhập địa chỉ..."
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-1 focus:ring-amber-500 focus:outline-none text-slate-700 font-medium"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 mb-1">Số điện thoại</label>
+                    <input
+                      type="text"
+                      value={editClinicPhone}
+                      onChange={(e) => setEditClinicPhone(e.target.value)}
+                      placeholder="Nhập số điện thoại..."
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-1 focus:ring-amber-500 focus:outline-none text-slate-700 font-medium"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 mb-1">Giờ mở cửa</label>
+                    <input
+                      type="text"
+                      value={editClinicHours}
+                      onChange={(e) => setEditClinicHours(e.target.value)}
+                      placeholder="Ví dụ: 09:00 - 21:00 (Mỗi ngày)"
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-1 focus:ring-amber-500 focus:outline-none text-slate-700 font-medium"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowEditProfileModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-500 font-semibold transition-colors"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-amber-900/15"
+                >
+                  <Save className="h-4 w-4" />
+                  Lưu thay đổi
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

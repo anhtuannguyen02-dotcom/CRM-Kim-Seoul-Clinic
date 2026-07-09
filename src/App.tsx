@@ -57,7 +57,8 @@ export default function App() {
       managerName: 'Đoàn Thị Huyền Trang',
       managerAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=600&h=600',
       logoUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB9lWUDJ3O5naySwCalAe_Vokbm8JC-rAXwCklB42fzS0uaCutuIEMjj8Psb7wPTktg3efiYVXNonj7kBk2-T2Y8_kcl03iTqitJP0B4bZCWAzy5S_0iW-j8csVI3ijVExl2cC74p7qyNgKXAhIhE18R_V9A4WznK6iN69rzwo3isWgXHyuzlr8d7XMfXAnncICex_okKOllYUNq6wXYk0X0WAaxl_SR_tp7v7y3zcJMASpZR8dsLb19U6xd1o80faAiFo',
-      dashboardImageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBYFpco8GVUNjAdNMEDCeaGaf3GAI8Heo3rxuWTy-fmPBVUKdjS4wSvY7UyXgsYqzdtWHjS7kLMzUObGhLeIz3VVpo52aimkW2CTCDnwH3Or-MS-sc7YFVspgAVPBHboflWr54BitxOub8d_NlfhojZyud-s4Pj3S1cT5Z0tJI5D-525A5WjyNjXDa_9zsZfyBja9onbsjfFM8apk8AdAsEW_QnjhboL2AeT1x8tCursXdY_sTCOWh8rA'
+      dashboardImageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBYFpco8GVUNjAdNMEDCeaGaf3GAI8Heo3rxuWTy-fmPBVUKdjS4wSvY7UyXgsYqzdtWHjS7kLMzUObGhLeIz3VVpo52aimkW2CTCDnwH3Or-MS-sc7YFVspgAVPBHboflWr54BitxOub8d_NlfhojZyud-s4Pj3S1cT5Z0tJI5D-525A5WjyNjXDa_9zsZfyBja9onbsjfFM8apk8AdAsEW_QnjhboL2AeT1x8tCursXdY_sTCOWh8rA',
+      branchName: 'Vinhome Smart City'
     };
 
     const saved = localStorage.getItem('kimseoul_clinic_profile');
@@ -65,13 +66,13 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         // If they have legacy credentials/address/phone, migrate them to the new requested values
-        if (parsed.phone === '1900 888 999' || parsed.address?.includes('Sương Nguyệt Ánh') || !parsed.address) {
+        if (parsed.phone === '1900 888 999' || parsed.address?.includes('Sương Nguyệt Ánh') || !parsed.address || !parsed.branchName) {
           return {
+            ...defaultProfile,
             ...parsed,
-            address: defaultProfile.address,
-            phone: defaultProfile.phone,
-            hours: defaultProfile.hours,
-            managerAvatar: defaultProfile.managerAvatar
+            address: parsed.address?.includes('Sương Nguyệt Ánh') ? defaultProfile.address : (parsed.address || defaultProfile.address),
+            phone: parsed.phone === '1900 888 999' ? defaultProfile.phone : (parsed.phone || defaultProfile.phone),
+            branchName: parsed.branchName || defaultProfile.branchName
           };
         }
         return parsed;
@@ -1105,6 +1106,7 @@ export default function App() {
           notificationsCount={notificationsCount} 
           clearNotifications={clearNotifications} 
           clinicProfile={clinicProfile}
+          onUpdateClinicProfile={setClinicProfile}
           crmTasks={crmTasks}
           appointments={appointments}
         />

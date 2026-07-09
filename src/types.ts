@@ -114,5 +114,6 @@ export interface ClinicProfile {
   managerAvatar: string;
   logoUrl: string;
   dashboardImageUrl: string;
+  branchName?: string;
 }
 
