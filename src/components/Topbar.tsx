@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Search, Settings, HelpCircle, ChevronDown, CheckCircle, Clock, AlertCircle, AlertTriangle, Calendar, X, User, MapPin, Phone, Save } from 'lucide-react';
 
-import { ClinicProfile, CRMTask, Appointment } from '../types';
+import { ClinicProfile, CRMTask, Appointment, Customer } from '../types';
 
 interface TopbarProps {
   notificationsCount: number;
@@ -10,9 +10,22 @@ interface TopbarProps {
   onUpdateClinicProfile?: (profile: ClinicProfile) => void;
   crmTasks: CRMTask[];
   appointments: Appointment[];
+  dismissedAppointmentIds?: string[];
+  onNotificationSelect?: (customerId: string, itemType: 'task' | 'appointment', itemId: string) => void;
+  customers?: Customer[];
 }
 
-export default function Topbar({ notificationsCount, clearNotifications, clinicProfile, onUpdateClinicProfile, crmTasks, appointments }: TopbarProps) {
+export default function Topbar({
+  notificationsCount,
+  clearNotifications,
+  clinicProfile,
+  onUpdateClinicProfile,
+  crmTasks,
+  appointments,
+  dismissedAppointmentIds = [],
+  onNotificationSelect,
+  customers = []
+}: TopbarProps) {
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -86,11 +99,20 @@ export default function Topbar({ notificationsCount, clearNotifications, clinicP
 
   // Upcoming Appointments (today or tomorrow, 'Chờ phục vụ' or 'Đang thực hiện')
   const upcomingAppointments = appointments.filter(a => {
+    if (dismissedAppointmentIds.includes(a.id)) return false;
     return (a.status === 'Chờ phục vụ' || a.status === 'Đang thực hiện') && 
            (a.date === '2026-07-08' || a.date === '2026-07-09');
   });
 
-  const liveBadgeCount = overdueTasks.length + upcomingTasks.length + upcomingAppointments.length;
+  // Filter customers with 2 or fewer package sessions remaining
+  const lowSessionCustomers = (customers || []).filter(c => 
+    c.activePackages && c.activePackages.some(pkg => {
+      const remaining = pkg.totalSessions - pkg.usedSessions;
+      return remaining > 0 && remaining <= 2;
+    })
+  );
+
+  const liveBadgeCount = overdueTasks.length + upcomingTasks.length + upcomingAppointments.length + lowSessionCustomers.length;
 
   return (
     <header id="topbar-container" className="h-16 bg-white border-b border-slate-200/80 px-8 flex items-center justify-between sticky top-0 z-30 shadow-sm shadow-slate-100/40">
@@ -157,7 +179,14 @@ export default function Topbar({ notificationsCount, clearNotifications, clinicP
                       Cảnh báo: Tác vụ quá hạn chưa xong ({overdueTasks.length})
                     </div>
                     {overdueTasks.map(task => (
-                      <div key={task.id} className="px-4 py-2.5 hover:bg-rose-50/50 transition-colors flex gap-3 text-xs">
+                      <div 
+                        key={task.id} 
+                        onClick={() => {
+                          onNotificationSelect?.(task.customerId, 'task', task.id);
+                          setShowNotificationMenu(false);
+                        }}
+                        className="px-4 py-2.5 hover:bg-rose-50/80 hover:text-slate-950 cursor-pointer transition-colors flex gap-3 text-xs"
+                      >
                         <div className="p-1 bg-rose-100 rounded-full h-fit mt-0.5 text-rose-600">
                           <AlertTriangle className="h-3.5 w-3.5" />
                         </div>
@@ -184,7 +213,14 @@ export default function Topbar({ notificationsCount, clearNotifications, clinicP
                       Nhắc nhở: Tác vụ sắp đến hạn ({upcomingTasks.length})
                     </div>
                     {upcomingTasks.map(task => (
-                      <div key={task.id} className="px-4 py-2.5 hover:bg-slate-50 transition-colors flex gap-3 text-xs">
+                      <div 
+                        key={task.id} 
+                        onClick={() => {
+                          onNotificationSelect?.(task.customerId, 'task', task.id);
+                          setShowNotificationMenu(false);
+                        }}
+                        className="px-4 py-2.5 hover:bg-amber-50/60 cursor-pointer transition-colors flex gap-3 text-xs"
+                      >
                         <div className="p-1 bg-amber-100 rounded-full h-fit mt-0.5 text-amber-600">
                           <Clock className="h-3.5 w-3.5" />
                         </div>
@@ -211,7 +247,14 @@ export default function Topbar({ notificationsCount, clearNotifications, clinicP
                       Lịch hẹn sắp diễn ra ({upcomingAppointments.length})
                     </div>
                     {upcomingAppointments.map(appt => (
-                      <div key={appt.id} className="px-4 py-2.5 hover:bg-sky-50/40 transition-colors flex gap-3 text-xs">
+                      <div 
+                        key={appt.id} 
+                        onClick={() => {
+                          onNotificationSelect?.(appt.customerId, 'appointment', appt.id);
+                          setShowNotificationMenu(false);
+                        }}
+                        className="px-4 py-2.5 hover:bg-sky-100/70 cursor-pointer transition-colors flex gap-3 text-xs"
+                      >
                         <div className="p-1 bg-sky-100 rounded-full h-fit mt-0.5 text-sky-600">
                           <Calendar className="h-3.5 w-3.5" />
                         </div>
@@ -227,6 +270,51 @@ export default function Topbar({ notificationsCount, clearNotifications, clinicP
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/* Low Session Warnings */}
+                {lowSessionCustomers.length > 0 && (
+                  <div className="bg-amber-50/20">
+                    <div className="px-4 py-1.5 text-[9px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50/60 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3 text-amber-600" />
+                      Cảnh báo: Khách sắp hết buổi liệu trình ({lowSessionCustomers.length})
+                    </div>
+                    {lowSessionCustomers.map(c => {
+                      const lowPkgs = c.activePackages.filter(pkg => {
+                        const remaining = pkg.totalSessions - pkg.usedSessions;
+                        return remaining > 0 && remaining <= 2;
+                      });
+                      return (
+                        <div 
+                          key={c.id} 
+                          onClick={() => {
+                            onNotificationSelect?.(c.id, 'task', '');
+                            setShowNotificationMenu(false);
+                          }}
+                          className="px-4 py-2.5 hover:bg-amber-50/40 cursor-pointer transition-colors flex gap-3 text-xs"
+                        >
+                          <img 
+                            src={c.avatar} 
+                            alt={c.name} 
+                            className="h-7 w-7 rounded-full object-cover mt-0.5 border border-slate-100 shrink-0" 
+                            referrerPolicy="no-referrer" 
+                          />
+                          <div className="flex-1">
+                            <p className="font-semibold text-slate-900 leading-tight">
+                              {c.name}
+                            </p>
+                            <p className="text-[10px] text-amber-700 font-medium mt-0.5">
+                              {lowPkgs.map(pkg => `📦 ${pkg.packageName} (Còn ${pkg.totalSessions - pkg.usedSessions}/${pkg.totalSessions} buổi!)`).join(', ')}
+                            </p>
+                            <div className="flex items-center justify-between mt-1.5">
+                              <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-mono font-medium">⚠️ Sắp hết buổi</span>
+                              <span className="text-[9px] text-slate-400 font-mono">{c.phone}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 

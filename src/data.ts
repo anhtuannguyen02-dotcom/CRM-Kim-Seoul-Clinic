@@ -144,7 +144,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
 
 export const INITIAL_CUSTOMERS: Customer[] = [
   {
-    id: 'cust_1',
+    id: '0908123456',
     name: 'Nguyễn Phương Anh',
     phone: '0908 123 456',
     age: 28,
@@ -154,6 +154,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     totalSpent: 124500000,
     totalVisits: 14,
     notes: 'Khách hàng cực kỳ chú trọng vùng da mắt và rãnh cười. Da nhạy cảm nhẹ, thích nghe nhạc spa nhẹ khi trị liệu. Thường mua thêm kem dưỡng phục hồi sau điều trị.',
+    address: 'Vinhomes Smart City, Tây Mỗ, Nam Từ Liêm, Hà Nội',
     activePackages: [
       { packageName: 'Combo Trẻ Hoá Toàn Diện 5 Buổi', totalSessions: 5, usedSessions: 3 }
     ],
@@ -197,7 +198,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     ]
   },
   {
-    id: 'cust_2',
+    id: '0987654321',
     name: 'Trần Thu Hà',
     phone: '0987 654 321',
     age: 35,
@@ -207,6 +208,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     totalSpent: 45000000,
     totalVisits: 6,
     notes: 'Gặp vấn đề sắc tố da bẩm sinh, vùng má xuất hiện nám sạm chân sâu. Đang đi liệu trình Laser Pico. Yêu cầu bôi tê kỹ trước khi điều trị.',
+    address: '25 Cát Linh, Đống Đa, Hà Nội',
     activePackages: [
       { packageName: 'Liệu Trình Laser Pico Sạch Nám 10 Buổi', totalSessions: 10, usedSessions: 4 }
     ],
@@ -216,7 +218,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     beforeAfterImages: []
   },
   {
-    id: 'cust_3',
+    id: '0912333444',
     name: 'Admin Kim',
     phone: '0912 333 444',
     age: 32,
@@ -226,6 +228,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     totalSpent: 18000000,
     totalVisits: 3,
     notes: 'Thích trải nghiệm công nghệ cao, quan tâm dịch vụ nâng cơ hàm và trẻ hoá da nam giới.',
+    address: '18 Sương Nguyệt Ánh, Quận 1, TP. Hồ Chí Minh',
     activePackages: [],
     treatmentHistory: [
       { id: 'th_3_1', date: '2026-06-15', serviceName: 'Nâng cơ Ultherapy VIP', technician: 'Trần Hà Phương', note: 'Điêu khắc gọn viền hàm bằng Ultherapy 300 lines. Khách rất ưng kết quả tức thì.', status: 'Hoàn thành' }
@@ -233,7 +236,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     beforeAfterImages: []
   },
   {
-    id: 'cust_4',
+    id: '0934888999',
     name: 'Vũ Hoàng Yến',
     phone: '0934 888 999',
     age: 41,
@@ -243,6 +246,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     totalSpent: 285000000,
     totalVisits: 22,
     notes: 'VIP Đặc biệt, phu nhân tập đoàn lớn. Rất nhạy cảm với thái độ phục vụ. Luôn xếp bác sĩ Tú điều trị Thermage hoặc Ultherapy. Luôn phục vụ tại phòng VIP cao cấp nhất.',
+    address: 'Sky City Tower, 88 Láng Hạ, Đống Đa, Hà Nội',
     activePackages: [
       { packageName: 'Thermage FLX Cao Cấp 1 năm', totalSessions: 3, usedSessions: 1 }
     ],
@@ -250,7 +254,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     beforeAfterImages: []
   },
   {
-    id: 'cust_5',
+    id: '0977444555',
     name: 'Lê Minh Tâm',
     phone: '0977 444 555',
     age: 30,
@@ -260,6 +264,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     totalSpent: 8500000,
     totalVisits: 1,
     notes: 'Bị lỗ chân lông to ở cánh mũi, mong muốn tiêm Meso căng bóng cấp ẩm sâu thu nhỏ chân lông.',
+    address: '102 Nguyễn Chí Thanh, Láng Hạ, Đống Đa, Hà Nội',
     activePackages: [],
     treatmentHistory: [],
     beforeAfterImages: []
@@ -269,7 +274,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
 export const INITIAL_APPOINTMENTS: Appointment[] = [
   {
     id: 'appt_1',
-    customerId: 'cust_1',
+    customerId: '0908123456',
     customerName: 'Nguyễn Phương Anh',
     customerPhone: '0908 123 456',
     customerAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA6FJ_knYhgVdUozTF_zP-JMAaVTmEvBoM9noSc5B1wK3tW6G4nfIIfLOBDn9ZFxj1E3fslQBhWFclHYqpChaObdCunv11Yt04ea-t7b3J7O18gIy6NNdYaNyU4azmTLKRsj8LHIJoYoqn10VKsTuExCyMusAOEKZjG8d-PxmDda1OlKpp9zp07QtUX9MocnOFQhTlTt6z_Dy1LA0YvkWHwF0-JNcRaJ777gYZQ_bDts2-pfdycMBW3cw',
@@ -284,7 +289,7 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
   },
   {
     id: 'appt_2',
-    customerId: 'cust_2',
+    customerId: '0987654321',
     customerName: 'Trần Thu Hà',
     customerPhone: '0987 654 321',
     customerAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBuAofPzys8nO9ehhqe9MCk5DydSYieOkVDT6hB2cIycYgh03R0XHz2HKRpsJG4NM1c72BGic31Z2HKeAkMkWe9bmAKLDNfC7jWZUoWi5ro0xT-3ym0tjs-ETfDmo64LYD_I8UAlLvjmVtXsPZwxHS1JQU5WGGwTzRo11p2xwqMF_xQV4KwZpVyjqsLmb2VbC7YiBSecKxgvWvJAvHRqng9pw-Fyux4LORW2BGtMUYSZLgzNt6VFa09Ew',
@@ -299,7 +304,7 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
   },
   {
     id: 'appt_3',
-    customerId: 'cust_3',
+    customerId: '0912333444',
     customerName: 'Admin Kim',
     customerPhone: '0912 333 444',
     customerAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDIqPjhAp5cVJzS7gXkPMPWaqAQRJ6GonAhryRuDkZ4qL1qBRGx6rf04RxTWubqdpW1KUfNDBWlHRDlIpufZ6neYp9Y7LECMKxp7-T4Bw9LtpBPVDF8OUv-R4VjrjKB5gJD1w_0ohGMSjCzsFV2m5oEMG5XXcYzFICd9hB1sqPw_Lqh1Lo-a_VY6p5XORqMLaSVOxe_yCZph0KyWcm8Ps8FyOGhi6uCVrxlbzy0JFJuuooW7SVpZVYPSA',
@@ -314,7 +319,7 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
   },
   {
     id: 'appt_4',
-    customerId: 'cust_4',
+    customerId: '0934888999',
     customerName: 'Vũ Hoàng Yến',
     customerPhone: '0934 888 999',
     customerAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCqgNK7wDBCLPEB5ltOOeB5qtCNSflyX-OI917IvofLJeVdgjp33c0zZdqJUH8n-jCn9sYW-tpGg9lgcRrWwssTPawj2ssM_ZeCe3V7qGZW8cZyV86IC3rZlJbdLITeEKB9cJdv362OHACuSD5aIvW-dwU9dv9iviBUiV6T8QEza8DANmrkn9P48dQ2kMyr0q0W69Gv9af_ueE8Dwczt0DbWPQ1P-469JsUZOeVwX0UFU8J1w1GHOfqvg',
@@ -329,7 +334,7 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
   },
   {
     id: 'appt_5',
-    customerId: 'cust_5',
+    customerId: '0977444555',
     customerName: 'Lê Minh Tâm',
     customerPhone: '0977 444 555',
     customerAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAPhGoTjtUutxMviwQA6tzgNLgwC3L905UOgKFihCIpyIjjRu_w3A2ql6Ldgf7SyHmH2W81se759xGRrYJpjrK3C6UrOcp8c4RvueFZ2ZjLiwHRpfzcz7uCaRG9fWRxIod9gR11Git42RpGQGQ-46USAyjgDUUR6WmgnV6PSeks4n5nAiH6qog5J5dpE9EIoZkAXx20kT38-oB2-wU8F9dzoq8SY_4L9fHCpTmv00D79cqTPAexmOHg8A',
@@ -347,7 +352,7 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
 export const INITIAL_CRM_TASKS: CRMTask[] = [
   {
     id: 'task_1',
-    customerId: 'cust_1',
+    customerId: '0908123456',
     customerName: 'Nguyễn Phương Anh',
     customerPhone: '0908 123 456',
     customerAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA6FJ_knYhgVdUozTF_zP-JMAaVTmEvBoM9noSc5B1wK3tW6G4nfIIfLOBDn9ZFxj1E3fslQBhWFclHYqpChaObdCunv11Yt04ea-t7b3J7O18gIy6NNdYaNyU4azmTLKRsj8LHIJoYoqn10VKsTuExCyMusAOEKZjG8d-PxmDda1OlKpp9zp07QtUX9MocnOFQhTlTt6z_Dy1LA0YvkWHwF0-JNcRaJ777gYZQ_bDts2-pfdycMBW3cw',
@@ -360,7 +365,7 @@ export const INITIAL_CRM_TASKS: CRMTask[] = [
   },
   {
     id: 'task_2',
-    customerId: 'cust_5',
+    customerId: '0977444555',
     customerName: 'Lê Minh Tâm',
     customerPhone: '0977 444 555',
     customerAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAPhGoTjtUutxMviwQA6tzgNLgwC3L905UOgKFihCIpyIjjRu_w3A2ql6Ldgf7SyHmH2W81se759xGRrYJpjrK3C6UrOcp8c4RvueFZ2ZjLiwHRpfzcz7uCaRG9fWRxIod9gR11Git42RpGQGQ-46USAyjgDUUR6WmgnV6PSeks4n5nAiH6qog5J5dpE9EIoZkAXx20kT38-oB2-wU8F9dzoq8SY_4L9fHCpTmv00D79cqTPAexmOHg8A',
@@ -373,7 +378,7 @@ export const INITIAL_CRM_TASKS: CRMTask[] = [
   },
   {
     id: 'task_3',
-    customerId: 'cust_4',
+    customerId: '0934888999',
     customerName: 'Vũ Hoàng Yến',
     customerPhone: '0934 888 999',
     customerAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCqgNK7wDBCLPEB5ltOOeB5qtCNSflyX-OI917IvofLJeVdgjp33c0zZdqJUH8n-jCn9sYW-tpGg9lgcRrWwssTPawj2ssM_ZeCe3V7qGZW8cZyV86IC3rZlJbdLITeEKB9cJdv362OHACuSD5aIvW-dwU9dv9iviBUiV6T8QEza8DANmrkn9P48dQ2kMyr0q0W69Gv9af_ueE8Dwczt0DbWPQ1P-469JsUZOeVwX0UFU8J1w1GHOfqvg',
@@ -385,7 +390,7 @@ export const INITIAL_CRM_TASKS: CRMTask[] = [
   },
   {
     id: 'task_4',
-    customerId: 'cust_2',
+    customerId: '0987654321',
     customerName: 'Trần Thu Hà',
     customerPhone: '0987 654 321',
     customerAvatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBuAofPzys8nO9ehhqe9MCk5DydSYieOkVDT6hB2cIycYgh03R0XHz2HKRpsJG4NM1c72BGic31Z2HKeAkMkWe9bmAKLDNfC7jWZUoWi5ro0xT-3ym0tjs-ETfDmo64LYD_I8UAlLvjmVtXsPZwxHS1JQU5WGGwTzRo11p2xwqMF_xQV4KwZpVyjqsLmb2VbC7YiBSecKxgvWvJAvHRqng9pw-Fyux4LORW2BGtMUYSZLgzNt6VFa09Ew',
@@ -444,7 +449,13 @@ export const DAILY_STATS = {
   newCustomers: 124,
   newCustomersTrend: 8.0,
   retentionRate: 68.2,
-  retentionTrend: 2.1
+  retentionTrend: 2.1,
+  dailyTarget: 550000000, // Chỉ tiêu KPI hàng ngày (550.000.000đ)
+  dailyVisitsTarget: 40, // Chỉ tiêu số lượt khách ngày
+  monthlyTarget: 12000000000, // Chỉ tiêu doanh thu tháng (12 tỷđ)
+  monthlyVisitsTarget: 1000, // Chỉ tiêu số lượt khách tháng
+  monthlyRevenue: 10712500000,
+  monthlyVisits: 850
 };
 
 export const REVENUE_WEEK_DATA = [

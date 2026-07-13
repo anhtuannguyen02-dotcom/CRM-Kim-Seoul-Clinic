@@ -14,10 +14,12 @@ import {
   X,
   Edit3,
   Trash2,
-  Download
+  Download,
+  Send
 } from 'lucide-react';
 import { CRMTask, Customer } from '../types';
 import { exportToExcel } from '../utils/exportToExcel';
+import { sendZaloMessage, sendSMSMessage } from '../utils/messagingService';
 
 interface CareViewProps {
   crmTasks: CRMTask[];
@@ -46,6 +48,64 @@ export default function CareView({
   // Log entry state
   const [logNote, setLogNote] = useState('');
   const [logChannel, setLogChannel] = useState<'Gọi điện' | 'SMS' | 'Zalo'>('Gọi điện');
+
+  // Automated message state
+  const [autoMessageChannel, setAutoMessageChannel] = useState<'SMS' | 'Zalo'>('Zalo');
+  const [autoMessageText, setAutoMessageText] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [sendStatus, setSendStatus] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Load template dynamically when task selection or channel selection changes
+  React.useEffect(() => {
+    if (!selectedTaskId) return;
+    const task = crmTasks.find(t => t.id === selectedTaskId);
+    if (!task) return;
+
+    let template = '';
+    if (task.type === 'Sau liệu trình') {
+      template = `Viện thẩm mỹ Kim Seoul Premium xin chào chị ${task.customerName}. Ngày hôm qua chị đã thực hiện dịch vụ ${task.serviceName || 'chăm sóc da cao cấp'}. Da của chị hiện có bị đỏ hay sưng nhẹ không ạ? Chị nhớ đắp mặt nạ phục hồi và bôi kem chống nắng đầy đủ nhé. Nếu cần hỗ trợ chị cứ liên hệ hotline 0909.123.456 ạ!`;
+    } else if (task.type === 'Nhắc lịch dặm') {
+      template = `Chào chị ${task.customerName}, Kim Seoul Premium xin thông báo đã đến thời gian dặm lại liệu trình ${task.serviceName || 'chăm sóc'} của mình để duy trì hiệu quả tối ưu nhất. Kim Seoul có thể hỗ trợ đặt lịch hẹn cho chị vào lúc mấy giờ hôm nay ạ?`;
+    } else if (task.type === 'Sinh nhật') {
+      template = `Chúc mừng sinh nhật chị ${task.customerName}! Kim Seoul Premium kính chúc chị tuổi mới luôn rạng rỡ, xinh đẹp và hạnh phúc. Để tri ân, Kim Seoul xin gửi tặng chị mã ưu đãi giảm 20% cho tất cả dịch vụ và liệu trình trong tháng sinh nhật của chị ạ.`;
+    } else { // Ưu đãi VIP
+      template = `Chào chị ${task.customerName}, Kim Seoul Premium xin gửi tới chị chương trình tri ân khách hàng VIP đặc quyền tuần này: Giảm ngay 30% khi đặt lịch trải nghiệm Liệu trình Nâng cơ xóa nhăn Meso Lift thế hệ mới. Đặt lịch ngay hôm nay chị nhé!`;
+    }
+
+    setAutoMessageText(template);
+    setSendStatus(null);
+  }, [selectedTaskId, autoMessageChannel, crmTasks]);
+
+  const handleSendAutoMessage = async () => {
+    const task = crmTasks.find(t => t.id === selectedTaskId);
+    if (!task || !autoMessageText) return;
+    setIsSending(true);
+    setSendStatus(null);
+
+    try {
+      let result;
+      if (autoMessageChannel === 'Zalo') {
+        result = await sendZaloMessage(task.customerPhone, autoMessageText);
+      } else {
+        result = await sendSMSMessage(task.customerPhone, autoMessageText);
+      }
+
+      setSendStatus({ success: result.success, message: result.message });
+
+      if (result.success) {
+        // Automatically append to Interaction Log and complete task
+        onAddLog(task.id, {
+          note: `[Gửi ${autoMessageChannel} Tự động] ${autoMessageText}`,
+          channel: autoMessageChannel
+        });
+      }
+    } catch (err: any) {
+      setSendStatus({ success: false, message: `Lỗi hệ thống: ${err.message || err}` });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
 
   // Add CRM Task States
   const [showAddModal, setShowAddModal] = useState(false);
@@ -419,10 +479,83 @@ export default function CareView({
               </div>
             </div>
 
+            {/* Automatic Messaging Section */}
+            {selectedTask.status !== 'Đã hoàn thành' && (
+              <div className="pt-4 border-t border-slate-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] uppercase tracking-wider text-slate-800 font-bold block flex items-center gap-1">
+                    <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                    Gửi Zalo OA / SMS Tự động
+                  </span>
+                  <div className="flex bg-slate-100 p-0.5 rounded-lg text-[9px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setAutoMessageChannel('Zalo')}
+                      className={`px-2 py-0.5 rounded-md transition-all ${
+                        autoMessageChannel === 'Zalo' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-850'
+                      }`}
+                    >
+                      Zalo OA
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAutoMessageChannel('SMS')}
+                      className={`px-2 py-0.5 rounded-md transition-all ${
+                        autoMessageChannel === 'SMS' ? 'bg-amber-600 text-white' : 'text-slate-500 hover:text-slate-850'
+                      }`}
+                    >
+                      SMS
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between text-[9px] text-slate-400 font-bold">
+                    <span>MẪU TIN NHẮN ({autoMessageChannel})</span>
+                    <span className="font-mono text-[8px] bg-slate-200/60 text-slate-600 px-1 py-0.5 rounded">
+                      {autoMessageText.length} kí tự
+                    </span>
+                  </div>
+                  <textarea
+                    value={autoMessageText}
+                    onChange={(e) => setAutoMessageText(e.target.value)}
+                    className="w-full text-[10px] leading-relaxed bg-white border border-slate-200/80 rounded-xl p-2.5 text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-amber-500 h-24 resize-none"
+                    placeholder="Nội dung tin nhắn..."
+                  />
+
+                  {sendStatus && (
+                    <div className={`p-2.5 rounded-xl text-[9px] font-bold leading-relaxed ${
+                      sendStatus.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200/60' : 'bg-rose-50 text-rose-800 border border-rose-200/60'
+                    }`}>
+                      {sendStatus.message}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleSendAutoMessage}
+                    disabled={isSending || !autoMessageText}
+                    className={`w-full py-2 rounded-xl text-white text-[10px] font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-sm ${
+                      autoMessageChannel === 'Zalo' 
+                        ? 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300' 
+                        : 'bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300'
+                    }`}
+                  >
+                    {isSending ? (
+                      <span className="inline-block animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
+                    ) : (
+                      <Send className="h-3 w-3" />
+                    )}
+                    Gửi thông báo tự động
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Log Entry Form */}
             {selectedTask.status !== 'Đã hoàn thành' && (
               <form onSubmit={handleSubmitLog} className="space-y-4 pt-4 border-t border-slate-100 text-xs">
-                <span className="text-[9px] uppercase tracking-wider text-amber-800 font-bold block">Ghi lại kết quả tiếp cận</span>
+                <span className="text-[9px] uppercase tracking-wider text-amber-800 font-bold block">Ghi lại kết quả tiếp cận thủ công</span>
                 
                 <div>
                   <label className="text-[9px] uppercase font-bold text-slate-400 block mb-1.5">Kênh tương tác</label>

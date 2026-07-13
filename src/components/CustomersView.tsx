@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, 
   UserPlus, 
@@ -20,10 +20,13 @@ import {
   Download,
   Trophy,
   Users,
-  CreditCard
+  CreditCard,
+  Upload
 } from 'lucide-react';
 import { Customer, ServiceItem, Technician } from '../types';
 import { exportToExcel } from '../utils/exportToExcel';
+import * as XLSX from 'xlsx';
+import { getCustomerRank } from '../App';
 
 interface CustomersViewProps {
   customers: Customer[];
@@ -36,6 +39,9 @@ interface CustomersViewProps {
   onAddBeforeAfterImage: (customerId: string, title: string, before: string, after: string) => void;
   onUpdateCustomer?: (id: string, updatedFields: Partial<Customer>) => void;
   onDeleteCustomer?: (id: string) => void;
+  onBatchImportCustomers?: (newCustomers: Customer[]) => void;
+  activeCustomerId?: string | null;
+  onClearActiveCustomerId?: () => void;
 }
 
 // Packages are now fully dynamically generated from the service database in SettingsView
@@ -63,14 +69,385 @@ export default function CustomersView({
   onUsePackageSession,
   onAddBeforeAfterImage,
   onUpdateCustomer,
-  onDeleteCustomer
+  onDeleteCustomer,
+  onBatchImportCustomers,
+  activeCustomerId,
+  onClearActiveCustomerId
 }: CustomersViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [rankFilter, setRankFilter] = useState<'All' | Customer['rank']>('All');
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>('cust_1'); // default Nguyễn Phương Anh
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>('0908123456'); // default Nguyễn Phương Anh
   const [showAddModal, setShowAddModal] = useState(false);
   const [showBuyPackageModal, setShowBuyPackageModal] = useState(false);
   const [showAddPhotoModal, setShowAddPhotoModal] = useState(false);
+
+  // States for Excel Import feature
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [parsedCustomers, setParsedCustomers] = useState<{
+    customer: Customer;
+    isExisting: boolean;
+    hasError: boolean;
+    errorMessage?: string;
+  }[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper to estimate birthday from age if none exists
+  const getBirthdayFromAge = (age: number): string => {
+    const birthYear = 2026 - age;
+    return `${birthYear}-01-01`;
+  };
+
+  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        setImportError(null);
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        
+        // Let's get the JSON as an array of objects
+        const rawRows = XLSX.utils.sheet_to_json<any>(worksheet);
+        
+        if (rawRows.length === 0) {
+          setImportError("File Excel rỗng hoặc không có dữ liệu phù hợp.");
+          return;
+        }
+
+        // Temporary map to group, deduplicate and consolidate Excel rows by phone number
+        const consolidatedMap = new Map<string, {
+          customer: Customer;
+          isExisting: boolean;
+          hasError: boolean;
+          errorMessage?: string;
+          notesList: string[];
+        }>();
+
+        rawRows.forEach((row, index) => {
+          // Normalization helper for flexible column header matching (supports English, Vietnamese, accents)
+          const getVal = (possibleKeys: string[]): any => {
+            for (const key of Object.keys(row)) {
+              const normalizedKey = key.toLowerCase().trim()
+                .replace(/[^a-z0-9àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/g, '');
+              
+              for (const p of possibleKeys) {
+                const normalizedP = p.toLowerCase().trim()
+                  .replace(/[^a-z0-9àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/g, '');
+                if (normalizedKey === normalizedP) {
+                  return row[key];
+                }
+              }
+            }
+            return undefined;
+          };
+
+          // 1. Extract Name & Phone
+          const name = String(getVal(['Họ và tên', 'Họ tên', 'Tên khách hàng', 'Tên', 'Name', 'Fullname', 'Full Name']) || '').trim();
+          let phone = String(getVal(['Số điện thoại', 'SĐT', 'SDT', 'Sđt', 'Phone', 'Telephone', 'Phone Number', 'PhoneNo']) || '').trim();
+          phone = phone.replace(/[^0-9+]/g, ''); // Clean non-numeric characters
+
+          if (!name && !phone) {
+            // Skip completely empty row
+            return;
+          }
+
+          // 2. Extract demographics and other metadata
+          const rawAge = getVal(['Tuổi', 'Age']);
+          let age = rawAge !== undefined ? Number(rawAge) : undefined;
+          
+          const bdayVal = getVal(['Ngày sinh', 'Sinh nhật', 'Birthday', 'Bday', 'Birth Date', 'Birthdate']);
+          let birthday = bdayVal ? String(bdayVal).trim() : undefined;
+          
+          if (birthday && !isNaN(Number(birthday))) {
+            const date = XLSX.SSF.parse_date_code(Number(birthday));
+            const y = date.y;
+            const m = String(date.m).padStart(2, '0');
+            const d = String(date.d).padStart(2, '0');
+            birthday = `${y}-${m}-${d}`;
+            if (age === undefined) age = 2026 - y;
+          } else if (birthday) {
+            const parts = birthday.split('/');
+            if (parts.length === 3) {
+              const d = parts[0].padStart(2, '0');
+              const m = parts[1].padStart(2, '0');
+              const y = parts[2];
+              birthday = `${y}-${m}-${d}`;
+              if (age === undefined) age = 2026 - Number(y);
+            } else {
+              const parsedDate = new Date(birthday);
+              if (!isNaN(parsedDate.getTime())) {
+                const y = parsedDate.getFullYear();
+                const m = String(parsedDate.getMonth() + 1).padStart(2, '0');
+                const d = String(parsedDate.getDate()).padStart(2, '0');
+                birthday = `${y}-${m}-${d}`;
+                if (age === undefined) age = 2026 - y;
+              }
+            }
+          }
+
+          if (age === undefined) {
+            age = 30; // sensible fallback
+          }
+
+          const genderStr = String(getVal(['Giới tính', 'Gender', 'Sex', 'Phái']) || '').trim().toLowerCase();
+          const gender: 'Nam' | 'Nữ' = (genderStr.startsWith('nam') || genderStr === 'male' || genderStr === 'm') ? 'Nam' : 'Nữ';
+
+          const rawRank = String(getVal(['Hạng thành viên', 'Hạng', 'Rank', 'Member Rank']) || '').trim();
+          let rank: Customer['rank'] = 'Standard';
+          const normalizedRank = rawRank.toLowerCase();
+          if (normalizedRank.includes('diamond vip plus')) rank = 'Diamond VIP Plus';
+          else if (normalizedRank.includes('diamond vip')) rank = 'Diamond VIP';
+          else if (normalizedRank.includes('gold')) rank = 'Gold Member';
+          else if (normalizedRank.includes('silver')) rank = 'Silver Member';
+
+          const notes = String(getVal(['Ghi chú', 'Notes', 'Note', 'Bệnh lý', 'Thông tin']) || '').trim();
+
+          // 3. Extract actual values & packages & products & programs
+          const rawSpent = getVal(['Giá trị thực tế', 'Giá trị', 'Thực chi', 'Giá trị gói', 'Actual Value', 'Value', 'Tổng chi tiêu', 'Chi tiêu', 'Spent', 'Doanh số']);
+          const actualValue = rawSpent !== undefined ? Number(rawSpent) : 0;
+
+          const rawVisits = getVal(['Số lần điều trị', 'Số lượt khám', 'Visits', 'TotalVisits', 'Total Visits', 'Số lần ghé']);
+          const visitsToAdd = rawVisits !== undefined ? Number(rawVisits) : 0;
+
+          // Package columns
+          const packageName = String(getVal(['Tên gói', 'Gói dịch vụ', 'Gói', 'Package', 'Gói đăng ký', 'Tên gói dịch vụ']) || '').trim();
+          const totalSessions = getVal(['Tổng số buổi', 'Số buổi', 'Tổng số buổi gói', 'Total Sessions', 'Sessions', 'Số buổi gói']);
+          const usedSessions = getVal(['Số buổi đã dùng', 'Số buổi đã sử dụng', 'Đã dùng', 'Used Sessions', 'Used', 'Số buổi đã đi']);
+
+          // Product column
+          const productName = String(getVal(['Sản phẩm thực tế', 'Sản phẩm', 'Product', 'Sản phẩm mua', 'Tên sản phẩm']) || '').trim();
+
+          // Program column
+          const programName = String(getVal(['Chương trình', 'Chương trình khuyến mãi', 'Ưu đãi', 'Program', 'Promotion', 'Chiến dịch']) || '').trim();
+
+          // 4. Validate essential fields
+          let hasError = false;
+          let errorMessage = '';
+          if (!name) {
+            hasError = true;
+            errorMessage = 'Thiếu họ và tên.';
+          } else if (!phone) {
+            hasError = true;
+            errorMessage = 'Thiếu số điện thoại.';
+          }
+
+          if (phone) {
+            let entry = consolidatedMap.get(phone);
+            
+            if (!entry) {
+              // Initialize: look up database for existing customer by phone number to update in-place
+              const existingCust = customers.find(c => c.phone === phone);
+              const isExisting = !!existingCust;
+
+              const customerCopy: Customer = existingCust ? {
+                // Clone existing customer to avoid reference issues
+                ...existingCust,
+                activePackages: [...(existingCust.activePackages || [])],
+                treatmentHistory: [...(existingCust.treatmentHistory || [])],
+                beforeAfterImages: [...(existingCust.beforeAfterImages || [])],
+              } : {
+                id: `cust_${Date.now()}_import_${index}`,
+                name,
+                phone,
+                age,
+                birthday: birthday || getBirthdayFromAge(age),
+                gender,
+                rank,
+                avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAPhGoTjtUutxMviwQA6tzgNLgwC3L905UOgKFihCIpyIjjRu_w3A2ql6Ldgf7SyHmH2W81se759xGRrYJpjrK3C6UrOcp8c4RvueFZ2ZjLiwHRpfzcz7uCaRG9fWRxIod9gR11Git42RpGQGQ-46USAyjgDUUR6WmgnV6PSeks4n5nAiH6qog5J5dpE9EIoZkAXx20kT38-oB2-wU8F9dzoq8SY_4L9fHCpTmv00D79cqTPAexmOHg8A',
+                totalSpent: 0,
+                totalVisits: 0,
+                notes: '',
+                activePackages: [],
+                treatmentHistory: [],
+                beforeAfterImages: []
+              };
+
+              // Overwrite default values if Excel has more descriptive information
+              if (name && (!customerCopy.name || customerCopy.name.startsWith('Khách hàng'))) {
+                customerCopy.name = name;
+              }
+              if (birthday && !existingCust) customerCopy.birthday = birthday;
+              if (age !== 30 && !existingCust) customerCopy.age = age;
+
+              entry = {
+                customer: customerCopy,
+                isExisting,
+                hasError,
+                errorMessage,
+                notesList: []
+              };
+
+              consolidatedMap.set(phone, entry);
+            }
+
+            const activeCust = entry.customer;
+
+            // Merge details for current row
+            if (notes) {
+              entry.notesList.push(notes);
+            }
+
+            // Sync actual value spent
+            if (actualValue > 0) {
+              activeCust.totalSpent += actualValue;
+            }
+
+            // Sync total visits
+            if (visitsToAdd > 0) {
+              activeCust.totalVisits += visitsToAdd;
+            } else if (packageName || productName || actualValue > 0) {
+              // auto increment visits if service/product was provided
+              activeCust.totalVisits += 1;
+            }
+
+            // Sync package ("gói")
+            if (packageName) {
+              const matchedPkg = activeCust.activePackages.find(p => p.packageName.toLowerCase().trim() === packageName.toLowerCase().trim());
+              const parsedTotalSess = totalSessions !== undefined ? Number(totalSessions) : 10;
+              const parsedUsedSess = usedSessions !== undefined ? Number(usedSessions) : 0;
+              
+              if (matchedPkg) {
+                matchedPkg.totalSessions = parsedTotalSess;
+                matchedPkg.usedSessions = parsedUsedSess;
+              } else {
+                activeCust.activePackages.push({
+                  packageName,
+                  totalSessions: parsedTotalSess,
+                  usedSessions: parsedUsedSess
+                });
+              }
+            }
+
+            // Sync product ("sản phẩm thực tế")
+            if (productName) {
+              // Add product to treatment history log
+              activeCust.treatmentHistory.push({
+                id: `treat_prod_${Date.now()}_row_${index}`,
+                date: new Date().toISOString().split('T')[0],
+                serviceName: productName,
+                technician: 'Hệ thống (Nhập Excel)',
+                note: `Sản phẩm thực tế mua từ file Excel. Trị giá thực tế: ${actualValue ? new Intl.NumberFormat('vi-VN').format(actualValue) + 'đ' : 'Chưa định giá'}`,
+                status: 'Hoàn thành'
+              });
+              entry.notesList.push(`Mua sản phẩm thực tế: ${productName}`);
+            }
+
+            // Sync program ("chương trình")
+            if (programName) {
+              entry.notesList.push(`Chương trình: ${programName}`);
+              
+              // 1. Detect if discount percent is written (e.g. "Giảm 15%")
+              const pctMatch = programName.match(/(\d+)\s*%/);
+              if (pctMatch) {
+                activeCust.discountPercent = Number(pctMatch[1]);
+              }
+
+              // 2. Detect if it activates Kim Skincare Pass
+              if (programName.toLowerCase().includes('skincare pass') || programName.toLowerCase().includes('pass')) {
+                activeCust.kimSkincarePass = {
+                  activatedDate: new Date().toISOString().split('T')[0],
+                  expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                  price: actualValue > 0 ? actualValue : 1000000,
+                  status: 'Hoạt động'
+                };
+              }
+            }
+
+            // Keep hasError if any row had severe validation error and it hasn't resolved
+            if (hasError) {
+              entry.hasError = true;
+              entry.errorMessage = errorMessage;
+            }
+          }
+        });
+
+        // Finalize consolidated objects and convert map to preview array
+        const processedList: typeof parsedCustomers = Array.from(consolidatedMap.values()).map(entry => {
+          const { customer, isExisting, hasError, errorMessage, notesList } = entry;
+          
+          // Recompute rank based on finalized cumulative totalSpent
+          customer.rank = getCustomerRank(customer.totalSpent);
+
+          // Standardize and merge notes beautifully
+          if (notesList.length > 0) {
+            const joinedNotes = notesList.filter((v, i, self) => self.indexOf(v) === i).join(' • ');
+            if (customer.notes) {
+              customer.notes = `${customer.notes}\n[Cập nhật Excel]: ${joinedNotes}`;
+            } else {
+              customer.notes = joinedNotes;
+            }
+          } else if (!customer.notes) {
+            customer.notes = 'Khách hàng nhập từ Excel';
+          }
+
+          return {
+            customer,
+            isExisting,
+            hasError: hasError && !customer.name, // Only flag error if name is missing
+            errorMessage
+          };
+        });
+
+        setParsedCustomers(processedList);
+      } catch (err) {
+        console.error("Lỗi đọc file Excel:", err);
+        setImportError("Đã xảy ra lỗi khi đọc file Excel. Vui lòng kiểm tra lại định dạng file.");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const executeImport = () => {
+    if (!onBatchImportCustomers) return;
+
+    setIsImporting(true);
+    try {
+      const validImports = parsedCustomers.filter(p => !p.hasError);
+      
+      // Merge with current state of customers
+      let mergedCustomersList = [...customers];
+
+      validImports.forEach(({ customer, isExisting }) => {
+        if (isExisting) {
+          // Replace/update existing customer in the list
+          mergedCustomersList = mergedCustomersList.map(c => c.id === customer.id ? customer : c);
+        } else {
+          // Prepend new customer to list
+          mergedCustomersList.unshift(customer);
+        }
+      });
+
+      // Update state in App.tsx
+      onBatchImportCustomers(mergedCustomersList);
+      
+      // Cleanup & Close
+      alert(`Đã nhập dữ liệu thành công! Đã thêm mới/cập nhật ${validImports.length} khách hàng.`);
+      setShowImportModal(false);
+      setParsedCustomers([]);
+      setImportError(null);
+    } catch (err) {
+      console.error(err);
+      alert("Đã xảy ra lỗi trong quá trình nhập dữ liệu khách hàng.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Sync selection when activeCustomerId is set
+  useEffect(() => {
+    if (activeCustomerId) {
+      setSelectedCustomerId(activeCustomerId);
+      if (onClearActiveCustomerId) {
+        onClearActiveCustomerId();
+      }
+    }
+  }, [activeCustomerId, onClearActiveCustomerId]);
 
   // Helper to calculate age from birthday string (YYYY-MM-DD)
   const calculateAgeFromBirthday = (bday: string): number => {
@@ -104,12 +481,6 @@ export default function CustomersView({
     return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   };
 
-  // Helper to estimate birthday from age if none exists
-  const getBirthdayFromAge = (age: number): string => {
-    const birthYear = 2026 - age;
-    return `${birthYear}-01-01`;
-  };
-
   // Edit Customer States
   const [showEditCustomerModal, setShowEditCustomerModal] = useState(false);
   const [editCustName, setEditCustName] = useState('');
@@ -120,6 +491,15 @@ export default function CustomersView({
   const [editCustNotes, setEditCustNotes] = useState('');
   const [editCustAvatar, setEditCustAvatar] = useState('');
   const [editCustDiscountPercent, setEditCustDiscountPercent] = useState<number>(0);
+  const [editCustAddress, setEditCustAddress] = useState('');
+
+  // Edit Treatment Session States
+  const [showEditTreatmentModal, setShowEditTreatmentModal] = useState(false);
+  const [editingTreatmentId, setEditingTreatmentId] = useState<string | null>(null);
+  const [editTreatmentServiceName, setEditTreatmentServiceName] = useState('');
+  const [editTreatmentNote, setEditTreatmentNote] = useState('');
+  const [editTreatmentTechnician, setEditTreatmentTechnician] = useState('');
+  const [editTreatmentDate, setEditTreatmentDate] = useState('');
 
   // Edit Clinical Photo States
   const [showEditPhotoModal, setShowEditPhotoModal] = useState(false);
@@ -136,6 +516,7 @@ export default function CustomersView({
   const [newRank, setNewRank] = useState<Customer['rank']>('Standard');
   const [newNotes, setNewNotes] = useState('');
   const [newDiscountPercent, setNewDiscountPercent] = useState<number>(0);
+  const [newAddress, setNewAddress] = useState('');
   const [initKimReward, setInitKimReward] = useState(false);
   const [initKimRewardBill, setInitKimRewardBill] = useState(3000000);
   const [initKimSkincarePass, setInitKimSkincarePass] = useState(false);
@@ -335,6 +716,7 @@ export default function CustomersView({
       rank: newRank,
       notes: newNotes,
       discountPercent: Number(newDiscountPercent),
+      address: newAddress,
       avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAPhGoTjtUutxMviwQA6tzgNLgwC3L905UOgKFihCIpyIjjRu_w3A2ql6Ldgf7SyHmH2W81se759xGRrYJpjrK3C6UrOcp8c4RvueFZ2ZjLiwHRpfzcz7uCaRG9fWRxIod9gR11Git42RpGQGQ-46USAyjgDUUR6WmgnV6PSeks4n5nAiH6qog5J5dpE9EIoZkAXx20kT38-oB2-wU8F9dzoq8SY_4L9fHCpTmv00D79cqTPAexmOHg8A',
       ...(initKimReward ? {
         kimRewardBillGoc: initKimRewardBill,
@@ -356,6 +738,7 @@ export default function CustomersView({
     setNewBirthday('1996-01-01');
     setNewNotes('');
     setNewDiscountPercent(0);
+    setNewAddress('');
     setInitKimReward(false);
     setInitKimRewardBill(3000000);
     setInitKimSkincarePass(false);
@@ -371,6 +754,7 @@ export default function CustomersView({
     setEditCustNotes(cust.notes);
     setEditCustAvatar(cust.avatar);
     setEditCustDiscountPercent(cust.discountPercent || 0);
+    setEditCustAddress(cust.address || '');
     setShowEditCustomerModal(true);
   };
 
@@ -388,7 +772,8 @@ export default function CustomersView({
       rank: editCustRank,
       notes: editCustNotes,
       avatar: editCustAvatar,
-      discountPercent: Number(editCustDiscountPercent)
+      discountPercent: Number(editCustDiscountPercent),
+      address: editCustAddress
     });
     setShowEditCustomerModal(false);
     alert('Đồng bộ hồ sơ khách hàng thành công!');
@@ -514,6 +899,96 @@ export default function CustomersView({
     }
   };
 
+  const handleStartEditTreatment = (item: any) => {
+    setEditingTreatmentId(item.id);
+    setEditTreatmentServiceName(item.serviceName);
+    setEditTreatmentNote(item.note);
+    setEditTreatmentTechnician(item.technician);
+    setEditTreatmentDate(item.date);
+    setShowEditTreatmentModal(true);
+  };
+
+  const handleEditTreatmentHistorySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCustomer || !onUpdateCustomer || !editingTreatmentId) return;
+
+    const matchedItem = selectedCustomer.treatmentHistory.find(item => item.id === editingTreatmentId);
+    if (!matchedItem) return;
+
+    let priceDiff = 0;
+    if (matchedItem.serviceName !== editTreatmentServiceName) {
+      const oldPrice = services.find(s => s.name === matchedItem.serviceName)?.price || 0;
+      const newPrice = services.find(s => s.name === editTreatmentServiceName)?.price || 0;
+      priceDiff = newPrice - oldPrice;
+    }
+
+    const updatedHistory = selectedCustomer.treatmentHistory.map(item => {
+      if (item.id === editingTreatmentId) {
+        return {
+          ...item,
+          serviceName: editTreatmentServiceName,
+          note: editTreatmentNote,
+          technician: editTreatmentTechnician,
+          date: editTreatmentDate
+        };
+      }
+      return item;
+    });
+
+    const updatedSpent = Math.max(0, selectedCustomer.totalSpent + priceDiff);
+
+    onUpdateCustomer(selectedCustomer.id, {
+      treatmentHistory: updatedHistory,
+      totalSpent: updatedSpent
+    });
+
+    setShowEditTreatmentModal(false);
+    setEditingTreatmentId(null);
+    alert('Cập nhật buổi điều trị thành công! Số liệu doanh thu đã được tự động tính toán đồng bộ.');
+  };
+
+  const handleDeleteTreatmentHistory = (itemId: string) => {
+    if (!selectedCustomer || !onUpdateCustomer) return;
+    if (confirm('Bạn có chắc chắn muốn xóa buổi trị liệu này khỏi bệnh án?')) {
+      const matchedItem = selectedCustomer.treatmentHistory.find(item => item.id === itemId);
+      if (!matchedItem) return;
+
+      const updatedHistory = selectedCustomer.treatmentHistory.filter(item => item.id !== itemId);
+      const updatedVisits = Math.max(0, selectedCustomer.totalVisits - 1);
+
+      let servicePrice = 0;
+      if (matchedItem.serviceName.startsWith('Trừ buổi: ')) {
+        const pkgName = matchedItem.serviceName.replace('Trừ buổi: ', '');
+        const updatedPackages = (selectedCustomer.activePackages || []).map(pkg => {
+          if (pkg.packageName === pkgName) {
+            return {
+              ...pkg,
+              usedSessions: Math.max(0, pkg.usedSessions - 1)
+            };
+          }
+          return pkg;
+        });
+        
+        onUpdateCustomer(selectedCustomer.id, {
+          treatmentHistory: updatedHistory,
+          totalVisits: updatedVisits,
+          activePackages: updatedPackages
+        });
+      } else {
+        const matchedService = services.find(s => s.name === matchedItem.serviceName);
+        servicePrice = matchedService ? matchedService.price : 0;
+        const updatedSpent = Math.max(0, selectedCustomer.totalSpent - servicePrice);
+        
+        onUpdateCustomer(selectedCustomer.id, {
+          treatmentHistory: updatedHistory,
+          totalVisits: updatedVisits,
+          totalSpent: updatedSpent
+        });
+      }
+      alert('Đã xóa buổi điều trị và tự động điều chỉnh số liệu doanh thu/số lượt!');
+    }
+  };
+
   // Handle Add Treatment Session
   const handleAddSession = (e: React.FormEvent) => {
     e.preventDefault();
@@ -609,6 +1084,18 @@ export default function CustomersView({
           </div>
           <div className="flex items-center gap-1.5">
             <button
+              id="btn-import-customers-excel"
+              onClick={() => {
+                setParsedCustomers([]);
+                setImportError(null);
+                setShowImportModal(true);
+              }}
+              className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center transition-all"
+              title="Nhập danh sách khách hàng từ Excel"
+            >
+              <Upload className="h-4 w-4" />
+            </button>
+            <button
               id="btn-export-customers-excel"
               onClick={() => {
                 exportToExcel(
@@ -687,7 +1174,17 @@ export default function CustomersView({
                       referrerPolicy="no-referrer"
                     />
                     <div>
-                      <p className="text-xs font-bold text-slate-800">{c.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-bold text-slate-800">{c.name}</p>
+                        {c.activePackages && c.activePackages.some(pkg => {
+                          const rem = pkg.totalSessions - pkg.usedSessions;
+                          return rem > 0 && rem <= 2;
+                        }) && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-rose-500 text-white animate-pulse" title="Còn tối đa 2 buổi liệu trình">
+                            ⚠️ Còn ≤ 2 buổi
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[10px] text-slate-400 font-mono font-medium mt-0.5">{c.phone}</p>
                     </div>
                   </div>
@@ -784,6 +1281,12 @@ export default function CustomersView({
                       </span>
                     ) : null}
                   </div>
+                  {selectedCustomer.address && (
+                    <div className="mt-2 text-xs text-slate-600 flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100 w-fit">
+                      <MapPin className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                      <span>Địa chỉ: <strong className="text-slate-800 font-semibold">{selectedCustomer.address}</strong></span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -831,7 +1334,14 @@ export default function CustomersView({
                   {selectedCustomer.activePackages.length > 0 ? (
                     selectedCustomer.activePackages.map((pkg, i) => (
                       <div key={i} className="space-y-2 pb-2 border-b border-indigo-100/30 last:border-0 last:pb-0">
-                        <p className="text-xs font-bold text-slate-800">{pkg.packageName}</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-bold text-slate-800">{pkg.packageName}</p>
+                          {pkg.totalSessions - pkg.usedSessions <= 2 && pkg.totalSessions - pkg.usedSessions > 0 && (
+                            <span className="px-1.5 py-0.5 bg-rose-100 border border-rose-200 rounded text-[9px] text-rose-700 font-bold animate-pulse">
+                              ⚠️ Sắp hết buổi!
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center justify-between text-[10px] text-slate-500 font-semibold">
                            <span>Tiến trình buổi</span>
                            <span>{pkg.usedSessions} / {pkg.totalSessions} buổi</span>
@@ -842,6 +1352,11 @@ export default function CustomersView({
                             style={{ width: `${(pkg.usedSessions / pkg.totalSessions) * 100}%` }}
                           ></div>
                         </div>
+                        {pkg.totalSessions - pkg.usedSessions <= 2 && pkg.totalSessions - pkg.usedSessions > 0 && (
+                          <div className="p-1.5 bg-rose-50 border border-rose-100/50 rounded text-[9px] text-rose-600 font-medium">
+                            Cảnh báo: Khách chỉ còn <strong>{pkg.totalSessions - pkg.usedSessions} buổi</strong> liệu trình này.
+                          </div>
+                        )}
                       </div>
                     ))
                   ) : (
@@ -1363,7 +1878,25 @@ export default function CustomersView({
                       
                       <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-4 space-y-2 hover:border-amber-200 transition-colors">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                          <p className="text-xs font-bold text-slate-900">{item.serviceName}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-bold text-slate-900">{item.serviceName}</p>
+                            <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => handleStartEditTreatment(item)}
+                                className="p-1 hover:bg-slate-150 rounded text-slate-400 hover:text-amber-500 transition-colors"
+                                title="Sửa buổi điều trị"
+                              >
+                                <Edit3 className="h-3 w-3" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteTreatmentHistory(item.id)}
+                                className="p-1 hover:bg-slate-150 rounded text-slate-400 hover:text-rose-500 transition-colors"
+                                title="Xóa buổi điều trị"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
                           <span className="text-[10px] text-slate-400 font-mono font-semibold flex items-center gap-1.5">
                             <Calendar className="h-3.5 w-3.5 text-slate-400" />
                             {item.date}
@@ -1595,6 +2128,19 @@ export default function CustomersView({
               </div>
 
               <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Địa chỉ *</label>
+                <input
+                  id="new-cust-address-input"
+                  type="text"
+                  placeholder="Ví dụ: 25 Cát Linh, Đống Đa, Hà Nội..."
+                  value={newAddress}
+                  onChange={(e) => setNewAddress(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-semibold text-slate-800"
+                />
+              </div>
+
+              <div>
                 <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Giảm trừ đặc cách % từ khách hàng</label>
                 <input
                   id="new-cust-discount-input"
@@ -1767,6 +2313,18 @@ export default function CustomersView({
                     <option value="Diamond VIP Plus">Diamond VIP Plus</option>
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Địa chỉ *</label>
+                <input
+                  type="text"
+                  placeholder="Ví dụ: 25 Cát Linh, Đống Đa, Hà Nội..."
+                  value={editCustAddress}
+                  onChange={(e) => setEditCustAddress(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white font-semibold text-slate-800"
+                />
               </div>
 
               <div>
@@ -2088,6 +2646,272 @@ export default function CustomersView({
                   className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-sm"
                 >
                   Xác nhận cập nhật
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Import Customer Excel Modal */}
+      {showImportModal && (
+        <div id="import-customer-modal-overlay" className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div id="import-customer-modal-content" className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-blue-50 text-blue-700 rounded-lg">
+                  <Upload className="h-4 w-4" />
+                </div>
+                <span className="font-bold text-slate-900 text-sm">Nhập dữ liệu khách hàng từ file Excel</span>
+              </div>
+              <button onClick={() => { setShowImportModal(false); setParsedCustomers([]); setImportError(null); }} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4 text-xs text-slate-700 flex-1">
+              {/* Template guide */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/60 space-y-2">
+                <h4 className="font-bold text-slate-700">Hướng dẫn định dạng cột file Excel</h4>
+                <p className="text-slate-500 text-[11px] leading-relaxed">
+                  Hệ thống tự động nhận diện thông minh tiếng Việt và tiếng Anh. File Excel của bạn nên có các cột sau:
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] pt-1">
+                  <div className="bg-white p-1.5 rounded-lg border border-slate-100"><span className="font-medium text-slate-800">Họ và tên</span> (Họ tên, Name)</div>
+                  <div className="bg-white p-1.5 rounded-lg border border-slate-100"><span className="font-medium text-slate-800">Số điện thoại *</span> (SĐT, Phone)</div>
+                  <div className="bg-white p-1.5 rounded-lg border border-slate-100"><span className="font-medium text-slate-800">Tuổi / Ngày sinh</span> (Age / Birthday)</div>
+                  <div className="bg-white p-1.5 rounded-lg border border-slate-100"><span className="font-medium text-slate-800">Giới tính</span> (Nam / Nữ)</div>
+                  <div className="bg-white p-1.5 rounded-lg border border-slate-100"><span className="font-medium text-slate-800">Tổng chi tiêu</span> (Total Spent)</div>
+                  <div className="bg-white p-1.5 rounded-lg border border-slate-100"><span className="font-medium text-slate-800">Số lần điều trị</span> (Visits)</div>
+                  <div className="bg-white p-1.5 rounded-lg border border-slate-100"><span className="font-medium text-slate-800">Hạng thành viên</span> (Rank)</div>
+                  <div className="bg-white p-1.5 rounded-lg border border-slate-100"><span className="font-medium text-slate-800">Ghi chú</span> (Note)</div>
+                </div>
+              </div>
+
+              {/* Upload drag-n-drop or select area */}
+              <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-2xl p-6 transition-all bg-white relative cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  onChange={handleExcelUpload}
+                  accept=".xlsx, .xls, .csv" 
+                  className="hidden"
+                />
+                <div className="p-3 bg-blue-50 text-blue-600 rounded-full mb-3">
+                  <FileText className="h-6 w-6 animate-pulse" />
+                </div>
+                <p className="font-bold text-slate-700 text-center mb-1">
+                  Kéo thả file Excel vào đây hoặc click để chọn file
+                </p>
+                <p className="text-[10px] text-slate-400 text-center">
+                  Hỗ trợ định dạng .xlsx, .xls, .csv
+                </p>
+              </div>
+
+              {/* Error warning if any */}
+              {importError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-[11px] font-medium">
+                  {importError}
+                </div>
+              )}
+
+              {/* Preview Grid for parsed customers */}
+              {parsedCustomers.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-800">Xem trước danh sách ({parsedCustomers.length} khách hàng)</span>
+                    <button 
+                      type="button"
+                      onClick={() => setParsedCustomers([])}
+                      className="text-red-500 hover:text-red-600 text-[11px] font-bold"
+                    >
+                      Xóa danh sách tải lên
+                    </button>
+                  </div>
+
+                  <div className="border border-slate-200/80 rounded-2xl overflow-hidden max-h-[250px] overflow-y-auto">
+                    <table className="w-full text-left text-[11px] border-collapse bg-white">
+                      <thead className="bg-slate-50 text-slate-500 sticky top-0 border-b border-slate-100">
+                        <tr>
+                          <th className="p-2.5 font-bold">Khách hàng</th>
+                          <th className="p-2.5 font-bold">SĐT</th>
+                          <th className="p-2.5 font-bold text-center">Hạng</th>
+                          <th className="p-2.5 font-bold text-right">Chi tiêu</th>
+                          <th className="p-2.5 font-bold text-center">Số lượt</th>
+                          <th className="p-2.5 font-bold text-right">Trạng thái</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {parsedCustomers.map((p, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50">
+                            <td className="p-2.5">
+                              <div className="font-medium text-slate-800">{p.customer.name || <span className="text-red-500 italic">Thiếu tên</span>}</div>
+                              <div className="text-[10px] text-slate-400">{p.customer.gender}, {p.customer.age} tuổi</div>
+                              <div className="flex flex-wrap gap-1 mt-1 max-w-[280px]">
+                                {p.customer.activePackages.length > 0 && (
+                                  <span className="inline-flex items-center gap-0.5 px-1 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded text-[9px] font-medium" title="Gói dịch vụ đã đồng bộ">
+                                    📦 {p.customer.activePackages[p.customer.activePackages.length - 1].packageName} ({p.customer.activePackages[p.customer.activePackages.length - 1].usedSessions}/{p.customer.activePackages[p.customer.activePackages.length - 1].totalSessions} buổi)
+                                  </span>
+                                )}
+                                {p.customer.treatmentHistory.some(t => t.note?.includes('Sản phẩm thực tế')) && (
+                                  <span className="inline-flex items-center gap-0.5 px-1 py-0.5 bg-teal-50 text-teal-700 border border-teal-100 rounded text-[9px] font-medium" title="Sản phẩm thực tế đã đồng bộ">
+                                    🛍️ {p.customer.treatmentHistory.find(t => t.note?.includes('Sản phẩm thực tế'))?.serviceName}
+                                  </span>
+                                )}
+                                {p.customer.discountPercent && (
+                                  <span className="inline-flex items-center gap-0.5 px-1 py-0.5 bg-purple-50 text-purple-700 border border-purple-100 rounded text-[9px] font-medium" title="Chương trình ưu đãi giảm giá">
+                                    🏷️ Giảm {p.customer.discountPercent}%
+                                  </span>
+                                )}
+                                {p.customer.kimSkincarePass && (
+                                  <span className="inline-flex items-center gap-0.5 px-1 py-0.5 bg-pink-50 text-pink-700 border border-pink-100 rounded text-[9px] font-medium" title="Kim Skincare Pass hoạt động">
+                                    🎫 Skincare Pass
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-2.5 text-slate-600">{p.customer.phone || <span className="text-red-500 italic">Thiếu SĐT</span>}</td>
+                            <td className="p-2.5 text-center">
+                              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
+                                p.customer.rank === 'Diamond VIP Plus' ? 'bg-purple-50 text-purple-700' :
+                                p.customer.rank === 'Diamond VIP' ? 'bg-amber-50 text-amber-700' :
+                                p.customer.rank === 'Gold Member' ? 'bg-yellow-50 text-yellow-700' :
+                                p.customer.rank === 'Silver Member' ? 'bg-slate-100 text-slate-700' :
+                                'bg-slate-50 text-slate-500'
+                              }`}>
+                                {p.customer.rank}
+                              </span>
+                            </td>
+                            <td className="p-2.5 text-right font-mono text-slate-600">
+                              {new Intl.NumberFormat('vi-VN').format(p.customer.totalSpent)}đ
+                            </td>
+                            <td className="p-2.5 text-center text-slate-600 font-mono">{p.customer.totalVisits}</td>
+                            <td className="p-2.5 text-right">
+                              {p.hasError ? (
+                                <span className="px-1.5 py-0.5 bg-red-50 text-red-600 font-bold rounded-lg text-[9px]">Lỗi: {p.errorMessage}</span>
+                              ) : p.isExisting ? (
+                                <span className="px-1.5 py-0.5 bg-amber-50 text-amber-600 font-bold rounded-lg text-[9px]" title="SĐT đã tồn tại, sẽ cộng dồn chi tiêu/số lượt và cập nhật ghi chú">Cập nhật</span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 font-bold rounded-lg text-[9px]">Thêm mới</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => { setShowImportModal(false); setParsedCustomers([]); setImportError(null); }}
+                className="px-4 py-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl transition-all font-medium"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={parsedCustomers.length === 0 || parsedCustomers.some(p => p.hasError) || isImporting}
+                onClick={executeImport}
+                className={`px-4 py-2 rounded-xl text-white font-medium flex items-center gap-1.5 transition-all shadow-md ${
+                  parsedCustomers.length === 0 || parsedCustomers.some(p => p.hasError) || isImporting
+                    ? 'bg-slate-300 cursor-not-allowed shadow-none'
+                    : 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98]'
+                }`}
+              >
+                {isImporting ? (
+                  <>Đang nhập dữ liệu...</>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    Bắt đầu Nhập dữ liệu ({parsedCustomers.filter(p => !p.hasError).length})
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Treatment Session Modal */}
+      {showEditTreatmentModal && (
+        <div id="edit-treatment-modal-overlay" className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div id="edit-treatment-modal-content" className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden text-xs text-slate-700">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <span className="font-bold text-slate-900 text-sm">Chỉnh sửa Buổi Điều Trị / Dịch Vụ</span>
+              <button onClick={() => { setShowEditTreatmentModal(false); setEditingTreatmentId(null); }} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditTreatmentHistorySubmit} className="p-6 space-y-4">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Tên dịch vụ / Liệu trình</label>
+                <select
+                  value={editTreatmentServiceName}
+                  onChange={(e) => setEditTreatmentServiceName(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                >
+                  <option value={editTreatmentServiceName}>{editTreatmentServiceName}</option>
+                  {services.map(s => s.name !== editTreatmentServiceName && (
+                    <option key={s.id} value={s.name}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Kỹ thuật viên / Bác sĩ phụ trách</label>
+                <select
+                  value={editTreatmentTechnician}
+                  onChange={(e) => setEditTreatmentTechnician(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                >
+                  {technicians?.map(t => (
+                    <option key={t.id} value={t.name}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Ngày thực hiện (Ngày/Tháng/Năm)</label>
+                <input
+                  type="text"
+                  value={editTreatmentDate}
+                  onChange={(e) => setEditTreatmentDate(e.target.value)}
+                  placeholder="DD/MM/YYYY"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Ghi chú lâm sàng / Tình trạng</label>
+                <textarea
+                  rows={3}
+                  value={editTreatmentNote}
+                  onChange={(e) => setEditTreatmentNote(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
+                  placeholder="Nhập ghi chú chi tiết về buổi điều trị..."
+                />
+              </div>
+
+              <div className="pt-4 flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => { setShowEditTreatmentModal(false); setEditingTreatmentId(null); }}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-sm"
+                >
+                  Lưu thay đổi
                 </button>
               </div>
             </form>

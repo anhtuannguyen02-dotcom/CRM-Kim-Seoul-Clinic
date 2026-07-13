@@ -8,9 +8,11 @@ import {
   UserRoundCheck, 
   Settings, 
   LogOut,
-  ChevronRight
+  ChevronRight,
+  TrendingUp
 } from 'lucide-react';
 import { ClinicProfile } from '../types';
+import DataSyncStatus from './DataSyncStatus';
 
 interface SidebarProps {
   currentTab: string;
@@ -27,6 +29,7 @@ export default function Sidebar({ currentTab, onTabChange, onLogout, clinicProfi
     { id: 'care', name: 'Chăm sóc', icon: HeartHandshake },
     { id: 'promotions', name: 'Khuyến mãi', icon: TicketPercent },
     { id: 'staff', name: 'Nhân sự', icon: UserRoundCheck },
+    { id: 'reports', name: 'Báo cáo doanh thu', icon: TrendingUp },
     { id: 'settings', name: 'Cài đặt', icon: Settings },
   ];
 
@@ -75,6 +78,7 @@ export default function Sidebar({ currentTab, onTabChange, onLogout, clinicProfi
 
       {/* Logout Footer Section */}
       <div id="sidebar-footer" className="p-4 border-t border-slate-800">
+        <DataSyncStatus />
         <button
           id="sidebar-logout-btn"
           onClick={onLogout}

@@ -27,9 +27,14 @@ import CareView from './components/CareView';
 import PromotionsView from './components/PromotionsView';
 import StaffView from './components/StaffView';
 import SettingsView from './components/SettingsView';
+import ReportsView from './components/ReportsView';
 
 import { Sparkles, Key, UserCheck, ShieldAlert, Clock } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useSyncCollection, useSyncDocument, db } from './utils/firebase';
+import { useCentralSyncManager } from './utils/syncManager';
+import { writeBatch, doc, collection, getDocs, setDoc } from 'firebase/firestore';
+import { trackRevenueEvent } from './utils/revenueHelper';
 
 // Formulate Rank from totalSpent dynamically matching Spa policies
 export const getCustomerRank = (totalSpent: number): 'Diamond VIP Plus' | 'Diamond VIP' | 'Gold Member' | 'Silver Member' | 'Standard' => {
@@ -97,6 +102,8 @@ export default function App() {
   // Main UI States
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [notificationsCount, setNotificationsCount] = useState<number>(3);
+  const [activeCustomerId, setActiveCustomerId] = useState<string | null>(null);
+  const [dismissedAppointmentIds, setDismissedAppointmentIds] = useState<string[]>([]);
 
   // Sync clinic profile to localStorage
   useEffect(() => {
@@ -199,6 +206,139 @@ export default function App() {
     localStorage.setItem('kimseoul_clinic_profile', JSON.stringify(clinicProfile));
   }, [clinicProfile]);
 
+  // Real-time Cloud Synchronization via Firestore (keeps database online and synchronized across all clients)
+  useCentralSyncManager({
+    services,
+    setServices,
+    initialServices: INITIAL_SERVICES,
+    customers,
+    setCustomers,
+    initialCustomers: INITIAL_CUSTOMERS,
+    appointments,
+    setAppointments,
+    initialAppointments: INITIAL_APPOINTMENTS,
+    onSyncUpdate: (currentServices, currentAppointments, currentCustomers) => {
+      recalculateFinancials(currentServices, currentAppointments, currentCustomers);
+    }
+  });
+
+  useSyncCollection('technicians', technicians, setTechnicians, INITIAL_TECHNICIANS);
+  useSyncCollection('crm_tasks', crmTasks, setCrmTasks, INITIAL_CRM_TASKS);
+  useSyncCollection('promotions', promotions, setPromotions, INITIAL_PROMOTIONS);
+  useSyncDocument('clinic_profile', 'main', clinicProfile, setClinicProfile, clinicProfile);
+  useSyncDocument('stats', 'daily', stats, setStats, DAILY_STATS);
+
+  // Function to recalculate all financial stats and metrics using the latest services and pricing data from Firestore
+  const recalculateFinancials = async (
+    customServices?: typeof services,
+    customAppointments?: typeof appointments,
+    customCustomers?: typeof customers
+  ) => {
+    try {
+      // Direct real-time fetch from Firestore services collection to ensure absolutely consistent prices
+      const servicesSnapshot = await getDocs(collection(db, 'services'));
+      const firestoreServices: ServiceItem[] = [];
+      servicesSnapshot.forEach((docSnap) => {
+        firestoreServices.push({ id: docSnap.id, ...docSnap.data() } as ServiceItem);
+      });
+
+      const currentServices = firestoreServices.length > 0 ? firestoreServices : (customServices || services);
+      const currentAppointments = customAppointments || appointments;
+      const currentCustomers = customCustomers || customers;
+
+      // Calculate additional spent from package/treatments since baseline
+      const initialTotalSpentSum = 481000000;
+      const currentTotalSpentSum = currentCustomers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
+      const additionalSpentRevenue = Math.max(0, currentTotalSpentSum - initialTotalSpentSum);
+
+      // 1. Calculate Revenue: Base is 423,000,000
+      // Plus the price of all completed appointments, resolving their price dynamically from the latest services list
+      // Plus any additional package or direct spent from customers
+      const baseRevenue = 423000000;
+      const completedRevenue = currentAppointments
+        .filter(appt => appt.status === 'Hoàn thành')
+        .reduce((sum, appt) => {
+          const matchedService = currentServices.find(s => s.name === appt.serviceName);
+          const actualPrice = matchedService ? matchedService.price : appt.price;
+          return sum + actualPrice;
+        }, 0);
+      const calculatedRevenue = baseRevenue + completedRevenue + additionalSpentRevenue;
+
+      // 2. Calculate Appointments Today: Base is 28
+      const baseAppointmentsToday = 28;
+      const todayAppointmentsCount = currentAppointments.filter(appt => appt.date === '2026-07-08').length;
+      const calculatedAppointmentsToday = baseAppointmentsToday + todayAppointmentsCount;
+
+      // 3. Calculate Appointments Checked In Today: Base is 16
+      const baseAppointmentsCheckedIn = 16;
+      const todayCheckedInCount = currentAppointments.filter(
+        appt => appt.date === '2026-07-08' && (appt.status === 'Đang thực hiện' || appt.status === 'Hoàn thành')
+      ).length;
+      const calculatedAppointmentsCheckedIn = baseAppointmentsCheckedIn + todayCheckedInCount;
+
+      // 4. Calculate New Customers: Base is 119
+      const baseNewCustomers = 119;
+      const calculatedNewCustomers = baseNewCustomers + currentCustomers.length;
+
+      // 5. Calculate Monthly Revenue: Base is 10,650,000,000
+      // Plus the price of all completed appointments, resolving their price dynamically from the latest services list
+      const baseMonthlyRevenue = 10650000000;
+      const calculatedMonthlyRevenue = baseMonthlyRevenue + completedRevenue + additionalSpentRevenue;
+
+      // 6. Calculate Monthly Visits: Base is 818
+      // Plus total appointments count (July appointments)
+      const baseMonthlyVisits = 818;
+      const calculatedMonthlyVisits = baseMonthlyVisits + currentAppointments.length;
+
+      // 7. Calculate Retention/Return Rate: Base is 68.2%
+      // Calculated from actual customer visits and history!
+      const addedCustomersCount = Math.max(0, currentCustomers.length - 5);
+      const addedReturningCustomers = currentCustomers.slice(5).filter(c => (c.totalVisits || 0) > 1 || (c.treatmentHistory || []).length > 0).length;
+      const calculatedRetentionRate = Math.round(((3.41 + addedReturningCustomers) / (5 + addedCustomersCount)) * 1000) / 10;
+
+      const newStats = {
+        revenue: calculatedRevenue,
+        appointmentsToday: calculatedAppointmentsToday,
+        appointmentsCheckedIn: calculatedAppointmentsCheckedIn,
+        newCustomers: calculatedNewCustomers,
+        monthlyRevenue: calculatedMonthlyRevenue,
+        monthlyVisits: calculatedMonthlyVisits,
+        retentionRate: calculatedRetentionRate
+      };
+
+      setStats(prev => {
+        if (
+          prev.revenue === newStats.revenue &&
+          prev.appointmentsToday === newStats.appointmentsToday &&
+          prev.appointmentsCheckedIn === newStats.appointmentsCheckedIn &&
+          prev.newCustomers === newStats.newCustomers &&
+          prev.monthlyRevenue === newStats.monthlyRevenue &&
+          prev.monthlyVisits === newStats.monthlyVisits &&
+          prev.retentionRate === newStats.retentionRate
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          ...newStats
+        };
+      });
+
+      // Update the synchronized stats document in Firestore
+      const statsDocRef = doc(db, 'stats', 'daily');
+      await setDoc(statsDocRef, newStats, { merge: true });
+
+      console.log('Successfully recalculated financials from Firestore:', newStats);
+    } catch (error) {
+      console.error('Failed to recalculate financials from Firestore:', error);
+    }
+  };
+
+  // Reactively compute stats based on services, appointments and customers collections (always derived dynamically)
+  useEffect(() => {
+    recalculateFinancials();
+  }, [services, appointments, customers]);
+
   // Handle Login Action
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -240,6 +380,16 @@ export default function App() {
         revenue: prev.revenue + appt.price
       }));
     }
+
+    // Track in Firestore revenue reports
+    trackRevenueEvent({
+      date: appt.date,
+      deltaAppointments: 1,
+      deltaCompleted: appt.status === 'Hoàn thành' ? 1 : 0,
+      deltaRevenue: appt.status === 'Hoàn thành' ? appt.price : 0,
+      deltaVisits: appt.status === 'Hoàn thành' ? 1 : 0,
+      note: `Đặt lịch dịch vụ: ${appt.serviceName} cho ${appt.customerName}`
+    });
 
     setNotificationsCount(prev => prev + 1);
   };
@@ -304,12 +454,46 @@ export default function App() {
           };
           setCrmTasks(prevTasks => [careTask, ...prevTasks]);
 
+          // 3. Automatically deduct session from active packages if they exist
+          let activePackages = c.activePackages || [];
+          if (activePackages.length > 0) {
+            // Find matched package
+            let matchedIdx = activePackages.findIndex(pkg => 
+              pkg.packageName.toLowerCase().trim() === previousAppt.serviceName.toLowerCase().trim()
+            );
+            if (matchedIdx === -1) {
+              // Try finding partial match
+              matchedIdx = activePackages.findIndex(pkg => 
+                previousAppt.serviceName.toLowerCase().includes(pkg.packageName.toLowerCase().trim()) ||
+                pkg.packageName.toLowerCase().includes(previousAppt.serviceName.toLowerCase().trim())
+              );
+            }
+            if (matchedIdx === -1) {
+              // Fallback: match first active package
+              matchedIdx = 0;
+            }
+
+            if (matchedIdx !== -1) {
+              activePackages = activePackages.map((pkg, idx) => {
+                if (idx === matchedIdx) {
+                  const updatedUsed = Math.min(pkg.totalSessions, pkg.usedSessions + 1);
+                  return {
+                    ...pkg,
+                    usedSessions: updatedUsed
+                  };
+                }
+                return pkg;
+              });
+            }
+          }
+
           return {
             ...c,
             totalSpent: newTotalSpent,
             totalVisits: c.totalVisits + 1,
             rank: newRank,
-            treatmentHistory: updatedHistory
+            treatmentHistory: updatedHistory,
+            activePackages
           };
         }
         return c;
@@ -330,6 +514,15 @@ export default function App() {
         ...prev,
         revenue: prev.revenue + previousAppt.price
       }));
+
+      // Track in Firestore revenue reports
+      trackRevenueEvent({
+        date: previousAppt.date,
+        deltaRevenue: previousAppt.price,
+        deltaCompleted: 1,
+        deltaVisits: 1,
+        note: `Hoàn thành dịch vụ: ${previousAppt.serviceName} cho ${previousAppt.customerName}`
+      });
     } else if (previousAppt.status === 'Hoàn thành' && status !== 'Hoàn thành') {
       // Revert spending if reverting appointment from Completed status
       setCustomers(prevCustomers => prevCustomers.map(c => {
@@ -337,12 +530,44 @@ export default function App() {
           const newTotalSpent = Math.max(0, c.totalSpent - previousAppt.price);
           const newRank = getCustomerRank(newTotalSpent);
           const treatmentHistory = (c.treatmentHistory || []).filter(th => th.id !== `th_appt_${previousAppt.id}`);
+          
+          // Revert session deduction from active packages if they exist
+          let activePackages = c.activePackages || [];
+          if (activePackages.length > 0) {
+            // Find matched package
+            let matchedIdx = activePackages.findIndex(pkg => 
+              pkg.packageName.toLowerCase().trim() === previousAppt.serviceName.toLowerCase().trim()
+            );
+            if (matchedIdx === -1) {
+              matchedIdx = activePackages.findIndex(pkg => 
+                previousAppt.serviceName.toLowerCase().includes(pkg.packageName.toLowerCase().trim()) ||
+                pkg.packageName.toLowerCase().includes(previousAppt.serviceName.toLowerCase().trim())
+              );
+            }
+            if (matchedIdx === -1) {
+              matchedIdx = 0;
+            }
+
+            if (matchedIdx !== -1) {
+              activePackages = activePackages.map((pkg, idx) => {
+                if (idx === matchedIdx) {
+                  return {
+                    ...pkg,
+                    usedSessions: Math.max(0, pkg.usedSessions - 1)
+                  };
+                }
+                return pkg;
+              });
+            }
+          }
+
           return {
             ...c,
             totalSpent: newTotalSpent,
             totalVisits: Math.max(0, c.totalVisits - 1),
             rank: newRank,
-            treatmentHistory
+            treatmentHistory,
+            activePackages
           };
         }
         return c;
@@ -363,12 +588,40 @@ export default function App() {
         ...prev,
         revenue: Math.max(0, prev.revenue - previousAppt.price)
       }));
+
+      // Track in Firestore revenue reports
+      trackRevenueEvent({
+        date: previousAppt.date,
+        deltaRevenue: -previousAppt.price,
+        deltaCompleted: -1,
+        deltaVisits: -1,
+        note: `Hoàn tác hoàn thành dịch vụ: ${previousAppt.serviceName} cho ${previousAppt.customerName}`
+      });
     }
   };
 
   // Add Customer
   const handleAddCustomer = (newCust: Omit<Customer, 'id' | 'totalSpent' | 'totalVisits' | 'treatmentHistory' | 'activePackages' | 'beforeAfterImages'>): string => {
-    const newId = `cust_${Date.now()}`;
+    const cleanId = newCust.phone.replace(/\D/g, '');
+    const newId = cleanId || `cust_${Date.now()}`;
+
+    // Check if customer with this phone number already exists
+    const existing = customers.find(c => c.phone.replace(/\D/g, '') === cleanId || c.id === newId);
+    if (existing) {
+      const updatedCustomers = customers.map(c => c.id === existing.id ? {
+        ...c,
+        name: newCust.name || c.name,
+        age: newCust.age || c.age,
+        address: newCust.address || c.address,
+        birthday: newCust.birthday || c.birthday,
+        gender: newCust.gender || c.gender,
+        notes: newCust.notes ? `${c.notes}\n${newCust.notes}` : c.notes,
+      } : c);
+      setCustomers(updatedCustomers);
+      recalculateFinancials(services, appointments, updatedCustomers);
+      return existing.id;
+    }
+
     const cust: Customer = {
       ...newCust,
       id: newId,
@@ -379,11 +632,15 @@ export default function App() {
       beforeAfterImages: []
     };
 
-    setCustomers(prev => [cust, ...prev]);
-    setStats(prev => ({
-      ...prev,
-      newCustomers: prev.newCustomers + 1
-    }));
+    const updatedCustomers = [cust, ...customers];
+    setCustomers(updatedCustomers);
+    
+    recalculateFinancials(services, appointments, updatedCustomers);
+
+    trackRevenueEvent({
+      deltaNewCustomers: 1,
+      note: `Khách hàng mới đăng ký: ${cust.name}`
+    });
 
     // Trigger CRM Care Tasks for programs if pre-activated
     const newTasks: CRMTask[] = [];
@@ -438,6 +695,23 @@ export default function App() {
     return newId;
   };
 
+  // Handle Notification Selection & Click
+  const handleNotificationSelect = (customerId: string, itemType: 'task' | 'appointment', itemId: string) => {
+    // 1. Chuyển sang tab khách hàng
+    setCurrentTab('customers');
+    
+    // 2. Thiết lập ID khách hàng để CustomersView tự động mở
+    setActiveCustomerId(customerId);
+    
+    // 3. Trừ đi (Đánh dấu đã xem)
+    if (itemType === 'task') {
+      handleCompleteTask(itemId);
+    } else if (itemType === 'appointment') {
+      setDismissedAppointmentIds(prev => [...prev, itemId]);
+    }
+    setNotificationsCount(prev => Math.max(0, prev - 1));
+  };
+
   // Complete CRM Task
   const handleCompleteTask = (id: string) => {
     setCrmTasks(crmTasks.map(task => {
@@ -471,7 +745,7 @@ export default function App() {
 
   // Add log to Customer detail profile treatment history
   const handleAddCustomerTreatmentNote = (customerId: string, note: string, serviceName: string, technician: string) => {
-    setCustomers(customers.map(c => {
+    const updatedCustomers = customers.map(c => {
       if (c.id === customerId) {
         const treatmentHistory = c.treatmentHistory || [];
         const servicePrice = services.find(s => s.name === serviceName)?.price || 0;
@@ -495,12 +769,14 @@ export default function App() {
         };
       }
       return c;
-    }));
+    });
+    setCustomers(updatedCustomers);
+    recalculateFinancials(services, appointments, updatedCustomers);
   };
 
   // Add package to customer
   const handleAddCustomerPackage = (customerId: string, packageName: string, totalSessions: number, price: number) => {
-    setCustomers(customers.map(c => {
+    const updatedCustomers = customers.map(c => {
       if (c.id === customerId) {
         const activePackages = c.activePackages || [];
         const newTotalSpent = c.totalSpent + price;
@@ -519,18 +795,22 @@ export default function App() {
         };
       }
       return c;
-    }));
+    });
+    setCustomers(updatedCustomers);
+    recalculateFinancials(services, appointments, updatedCustomers);
 
-    // Update stats with package price
-    setStats(prev => ({
-      ...prev,
-      revenue: prev.revenue + price
-    }));
+    const targetCust = customers.find(c => c.id === customerId);
+    const custName = targetCust ? targetCust.name : 'Khách hàng';
+    trackRevenueEvent({
+      deltaRevenue: price,
+      deltaVisits: 1,
+      note: `Khách mua liệu trình: ${packageName} (${custName})`
+    });
   };
 
   // Use a session from customer's package
   const handleUsePackageSession = (customerId: string, packageName: string, note: string, technician: string) => {
-    setCustomers(customers.map(c => {
+    const updatedCustomers = customers.map(c => {
       if (c.id === customerId) {
         const activePackages = (c.activePackages || []).map(pkg => {
           if (pkg.packageName === packageName) {
@@ -561,7 +841,9 @@ export default function App() {
         };
       }
       return c;
-    }));
+    });
+    setCustomers(updatedCustomers);
+    recalculateFinancials(services, appointments, updatedCustomers);
   };
 
   // Add Before After clinical photo
@@ -680,87 +962,162 @@ export default function App() {
   };
 
   // Add Service Item
-  const handleAddService = (newSrv: Omit<ServiceItem, 'id'>) => {
+  const handleAddService = async (newSrv: Omit<ServiceItem, 'id'>) => {
     const srv: ServiceItem = {
       ...newSrv,
       id: `srv_${Date.now()}`
     };
-    setServices([...services, srv]);
+    const updatedServices = [...services, srv];
+    setServices(updatedServices);
+    // Trigger real-time financials recalculation after adding a new service
+    await recalculateFinancials(updatedServices, appointments, customers);
   };
 
   // Update Service
-  const handleUpdateService = (id: string, updatedFields: Partial<ServiceItem>) => {
+  const handleUpdateService = async (id: string, updatedFields: Partial<ServiceItem>) => {
     const originalService = services.find(s => s.id === id);
-    setServices(services.map(s => {
+    if (!originalService) return;
+
+    const oldName = originalService.name;
+    const newName = updatedFields.name || oldName;
+    const newPrice = updatedFields.price !== undefined ? updatedFields.price : originalService.price;
+    const priceDiff = newPrice - originalService.price;
+
+    const updatedServices = services.map(s => {
       if (s.id === id) {
         return { ...s, ...updatedFields };
       }
       return s;
-    }));
+    });
 
-    if (originalService) {
-      const oldName = originalService.name;
-      const newName = updatedFields.name || oldName;
-      const newPrice = updatedFields.price !== undefined ? updatedFields.price : originalService.price;
+    let updatedAppointments = appointments;
+    let updatedCrmTasks = crmTasks;
+    let updatedCustomers = customers;
 
-      // If name or price has changed, sync with other tables
-      if (newName !== oldName || newPrice !== originalService.price) {
-        // Update Appointments referencing this service name
-        setAppointments(prev => prev.map(appt => {
-          if (appt.serviceName === oldName) {
-            return {
-              ...appt,
-              serviceName: newName,
-              // Update price if appointment is pending
-              price: (appt.status === 'Chờ phục vụ' || appt.status === 'Đang thực hiện') ? newPrice : appt.price
-            };
+    const hasChanged = newName !== oldName || newPrice !== originalService.price;
+
+    if (hasChanged) {
+      // Update Appointments referencing this service name
+      updatedAppointments = appointments.map(appt => {
+        if (appt.serviceName === oldName) {
+          return {
+            ...appt,
+            serviceName: newName,
+            price: newPrice
+          };
+        }
+        return appt;
+      });
+
+      // Update CRM Tasks
+      updatedCrmTasks = crmTasks.map(task => {
+        if (task.serviceName === oldName) {
+          return { ...task, serviceName: newName };
+        }
+        return task;
+      });
+
+      // Update Customers active packages, treatment history, totalSpent & rank dynamically
+      updatedCustomers = customers.map(c => {
+        let changed = false;
+        let treatmentsCount = 0;
+        const activePackages = (c.activePackages || []).map(pkg => {
+          if (pkg.packageName === oldName) {
+            changed = true;
+            return { ...pkg, packageName: newName };
           }
-          return appt;
-        }));
-
-        // Update CRM Tasks
-        setCrmTasks(prev => prev.map(task => {
-          if (task.serviceName === oldName) {
-            return { ...task, serviceName: newName };
-          }
-          return task;
-        }));
-
-        // Update Customers active packages & treatment history
-        setCustomers(prev => prev.map(c => {
-          let changed = false;
-          const activePackages = (c.activePackages || []).map(pkg => {
-            if (pkg.packageName === oldName) {
-              changed = true;
-              return { ...pkg, packageName: newName };
+          return pkg;
+        });
+        const treatmentHistory = (c.treatmentHistory || []).map(th => {
+          if (th.serviceName === oldName) {
+            changed = true;
+            if (th.status === 'Hoàn thành') {
+              treatmentsCount++;
             }
-            return pkg;
-          });
-          const treatmentHistory = (c.treatmentHistory || []).map(th => {
-            if (th.serviceName === oldName) {
-              changed = true;
-              return { ...th, serviceName: newName };
-            }
-            return th;
-          });
-          if (changed) {
-            return { ...c, activePackages, treatmentHistory };
+            return { ...th, serviceName: newName };
           }
-          return c;
-        }));
+          return th;
+        });
+        if (changed) {
+          const addedSpent = priceDiff * treatmentsCount;
+          const newTotalSpent = Math.max(0, c.totalSpent + addedSpent);
+          return { 
+            ...c, 
+            activePackages, 
+            treatmentHistory,
+            totalSpent: newTotalSpent,
+            rank: getCustomerRank(newTotalSpent)
+          };
+        }
+        return c;
+      });
+    }
+
+    // Set states locally to update the UI instantly
+    setServices(updatedServices);
+    if (hasChanged) {
+      setAppointments(updatedAppointments);
+      setCrmTasks(updatedCrmTasks);
+      setCustomers(updatedCustomers);
+    }
+
+    // Direct synchronized atomic batch write to Firestore
+    try {
+      const batch = writeBatch(db);
+
+      // 1. Save updated service
+      const serviceDocRef = doc(db, 'services', id);
+      batch.set(serviceDocRef, { ...originalService, ...updatedFields });
+
+      if (hasChanged) {
+        // 2. Update matching appointments in Firestore
+        updatedAppointments.forEach(appt => {
+          if (appt.serviceName === newName) {
+            const apptDocRef = doc(db, 'appointments', appt.id);
+            batch.set(apptDocRef, appt);
+          }
+        });
+
+        // 3. Update matching CRM tasks in Firestore
+        updatedCrmTasks.forEach(task => {
+          if (task.serviceName === newName) {
+            const taskDocRef = doc(db, 'crm_tasks', task.id);
+            batch.set(taskDocRef, task);
+          }
+        });
+
+        // 4. Update matching customers in Firestore
+        updatedCustomers.forEach(c => {
+          const originalCust = customers.find(orig => orig.id === c.id);
+          if (originalCust && JSON.stringify(originalCust) !== JSON.stringify(c)) {
+            const custDocRef = doc(db, 'customers', c.id);
+            batch.set(custDocRef, c);
+          }
+        });
       }
+
+      await batch.commit();
+      console.log('Batch update to Firestore for service modifications completed successfully.');
+      
+      // Trigger real-time financials recalculation after updating service properties
+      await recalculateFinancials(updatedServices, updatedAppointments, updatedCustomers);
+    } catch (err) {
+      console.error('Failed to commit Firestore batch update for service modification:', err);
     }
   };
 
   // Delete Service
-  const handleDeleteService = (id: string) => {
-    setServices(services.filter(s => s.id !== id));
+  const handleDeleteService = async (id: string) => {
+    const updatedServices = services.filter(s => s.id !== id);
+    setServices(updatedServices);
+    // Trigger real-time financials recalculation after deleting a service
+    await recalculateFinancials(updatedServices, appointments, customers);
   };
 
   // Update Customer Details
   const handleUpdateCustomer = (id: string, updatedFields: Partial<Customer>) => {
     const originalCust = customers.find(c => c.id === id);
-    setCustomers(customers.map(c => {
+    const updatedCustomers = customers.map(c => {
       if (c.id === id) {
         const merged = { ...c, ...updatedFields };
         if (updatedFields.totalSpent !== undefined) {
@@ -769,7 +1126,10 @@ export default function App() {
         return merged;
       }
       return c;
-    }));
+    });
+    setCustomers(updatedCustomers);
+
+    let updatedAppointments = appointments;
 
     if (originalCust) {
       const oldName = originalCust.name;
@@ -782,7 +1142,7 @@ export default function App() {
 
       if (newName !== oldName || newPhone !== oldPhone || newAvatar !== oldAvatar) {
         // Sync Appointments
-        setAppointments(prev => prev.map(appt => {
+        updatedAppointments = appointments.map(appt => {
           if (appt.customerId === id) {
             return {
               ...appt,
@@ -792,7 +1152,8 @@ export default function App() {
             };
           }
           return appt;
-        }));
+        });
+        setAppointments(updatedAppointments);
 
         // Sync CRM Tasks
         setCrmTasks(prev => prev.map(task => {
@@ -861,13 +1222,23 @@ export default function App() {
         setCrmTasks(prev => [rewardTask, ...prev]);
       }
     }
+
+    recalculateFinancials(services, updatedAppointments, updatedCustomers);
   };
 
   // Delete Customer
   const handleDeleteCustomer = (id: string) => {
-    setCustomers(prev => prev.filter(c => c.id !== id));
-    setAppointments(prev => prev.filter(appt => appt.customerId !== id));
+    const updatedCustomers = customers.filter(c => c.id !== id);
+    const updatedAppointments = appointments.filter(appt => appt.customerId !== id);
+    setCustomers(updatedCustomers);
+    setAppointments(updatedAppointments);
     setCrmTasks(prev => prev.filter(task => task.customerId !== id));
+    recalculateFinancials(services, updatedAppointments, updatedCustomers);
+  };
+
+  // Batch Import Customers from Excel
+  const handleBatchImportCustomers = (newCustomersList: Customer[]) => {
+    setCustomers(newCustomersList);
   };
 
   // Edit Promotion
@@ -907,6 +1278,18 @@ export default function App() {
 
   // Delete Appointment
   const handleDeleteAppointment = (id: string) => {
+    const appt = appointments.find(a => a.id === id);
+    if (appt) {
+      const isCompleted = appt.status === 'Hoàn thành';
+      trackRevenueEvent({
+        date: appt.date,
+        deltaAppointments: -1,
+        deltaCompleted: isCompleted ? -1 : 0,
+        deltaRevenue: isCompleted ? -appt.price : 0,
+        deltaVisits: isCompleted ? -1 : 0,
+        note: `Xoá lịch hẹn: ${appt.serviceName} (${appt.customerName})`
+      });
+    }
     setAppointments(appointments.filter(a => a.id !== id));
   };
 
@@ -924,6 +1307,7 @@ export default function App() {
             onCompleteTask={handleCompleteTask}
             onNavigate={setCurrentTab}
             clinicProfile={clinicProfile}
+            services={services}
           />
         );
       case 'appointments':
@@ -955,6 +1339,9 @@ export default function App() {
             onAddBeforeAfterImage={handleAddBeforeAfterImage}
             onUpdateCustomer={handleUpdateCustomer}
             onDeleteCustomer={handleDeleteCustomer}
+            onBatchImportCustomers={handleBatchImportCustomers}
+            activeCustomerId={activeCustomerId}
+            onClearActiveCustomerId={() => setActiveCustomerId(null)}
           />
         );
       case 'care':
@@ -1005,6 +1392,16 @@ export default function App() {
             appointments={appointments}
             crmTasks={crmTasks}
             technicians={technicians}
+            stats={stats}
+            onUpdateStats={setStats}
+          />
+        );
+      case 'reports':
+        return (
+          <ReportsView
+            appointments={appointments}
+            customers={customers}
+            services={services}
           />
         );
       default:
@@ -1118,6 +1515,9 @@ export default function App() {
           onUpdateClinicProfile={setClinicProfile}
           crmTasks={crmTasks}
           appointments={appointments}
+          dismissedAppointmentIds={dismissedAppointmentIds}
+          onNotificationSelect={handleNotificationSelect}
+          customers={customers}
         />
 
         {/* Content canvas container */}

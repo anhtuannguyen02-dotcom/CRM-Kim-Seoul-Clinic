@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   TrendingUp, 
   Users, 
@@ -13,10 +13,23 @@ import {
   UserPlus, 
   ArrowUpRight,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  ShieldAlert,
+  Target
 } from 'lucide-react';
-import { Appointment, Technician, CRMTask, ClinicProfile } from '../types';
+import { Appointment, Technician, CRMTask, ClinicProfile, ServiceItem } from '../types';
 import { REVENUE_WEEK_DATA } from '../data';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../utils/firebase';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+} from 'recharts';
 
 interface DashboardViewProps {
   stats: {
@@ -28,6 +41,7 @@ interface DashboardViewProps {
     newCustomersTrend: number;
     retentionRate: number;
     retentionTrend: number;
+    dailyTarget?: number;
   };
   appointments: Appointment[];
   technicians: Technician[];
@@ -36,6 +50,7 @@ interface DashboardViewProps {
   onCompleteTask: (id: string) => void;
   onNavigate: (tab: string) => void;
   clinicProfile?: ClinicProfile;
+  services?: ServiceItem[];
 }
 
 export default function DashboardView({
@@ -46,13 +61,149 @@ export default function DashboardView({
   onUpdateAppointmentStatus,
   onCompleteTask,
   onNavigate,
-  clinicProfile
+  clinicProfile,
+  services
 }: DashboardViewProps) {
-  const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
+  const [localStats, setLocalStats] = useState(stats);
+  const [timePeriod, setTimePeriod] = useState<'day' | 'month'>('month');
+
+  const dailyTargetVal = localStats.dailyRevenueTarget || localStats.dailyTarget || 550000000;
+  const isKpiDeficit = localStats.revenue < dailyTargetVal * 0.8;
+  const kpiPercentage = Math.round((localStats.revenue / dailyTargetVal) * 1000) / 10;
+
+  // Additional target calculations requested by user
+  const appointmentsTodayVal = localStats.appointmentsToday || 32;
+  const dailyVisitsTargetVal = (localStats as any).dailyVisitsTarget || 40;
+  const dailyVisitsPercentage = Math.round((appointmentsTodayVal / dailyVisitsTargetVal) * 1000) / 10;
+
+  const monthlyRevenueVal = (localStats as any).monthlyRevenue || 10712500000;
+  const monthlyTargetVal = (localStats as any).monthlyRevenueTarget || (localStats as any).monthlyTarget || 12000000000;
+  const monthlyRevenuePercentage = Math.round((monthlyRevenueVal / monthlyTargetVal) * 1000) / 10;
+
+  const monthlyVisitsVal = (localStats as any).monthlyVisits || 850;
+  const monthlyVisitsTargetVal = (localStats as any).monthlyVisitsTarget || 1000;
+  const monthlyVisitsPercentage = Math.round((monthlyVisitsVal / monthlyVisitsTargetVal) * 1000) / 10;
+
+  // Sync with prop when parent updates
+  useEffect(() => {
+    setLocalStats(prev => ({
+      ...prev,
+      ...stats
+    }));
+  }, [stats]);
+
+  // Listen to Firestore stats/daily doc for real-time updates
+  useEffect(() => {
+    const docRef = doc(db, 'stats', 'daily');
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setLocalStats(prev => ({
+          ...prev,
+          ...data
+        }));
+      }
+    }, (err) => {
+      console.error('Lỗi lắng nghe Firestore stats/daily:', err);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Real-time synchronization change indicators
+  const [isRevenueFlashed, setIsRevenueFlashed] = useState(false);
+  const [isAppointmentsFlashed, setIsAppointmentsFlashed] = useState(false);
+  const [isNewCustomersFlashed, setIsNewCustomersFlashed] = useState(false);
+
+  const prevRevenueRef = useRef<number>(localStats.revenue);
+  const prevAppointmentsRef = useRef<number>(localStats.appointmentsToday);
+  const prevNewCustomersRef = useRef<number>(localStats.newCustomers);
+
+  useEffect(() => {
+    if (localStats.revenue !== prevRevenueRef.current) {
+      setIsRevenueFlashed(true);
+      const timer = setTimeout(() => setIsRevenueFlashed(false), 2000);
+      prevRevenueRef.current = localStats.revenue;
+      return () => clearTimeout(timer);
+    }
+  }, [localStats.revenue]);
+
+  useEffect(() => {
+    if (localStats.appointmentsToday !== prevAppointmentsRef.current) {
+      setIsAppointmentsFlashed(true);
+      const timer = setTimeout(() => setIsAppointmentsFlashed(false), 2000);
+      prevAppointmentsRef.current = localStats.appointmentsToday;
+      return () => clearTimeout(timer);
+    }
+  }, [localStats.appointmentsToday]);
+
+  useEffect(() => {
+    if (localStats.newCustomers !== prevNewCustomersRef.current) {
+      setIsNewCustomersFlashed(true);
+      const timer = setTimeout(() => setIsNewCustomersFlashed(false), 2000);
+      prevNewCustomersRef.current = localStats.newCustomers;
+      return () => clearTimeout(timer);
+    }
+  }, [localStats.newCustomers]);
 
   // Format currency
   const formatVND = (num: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num);
+  };
+
+  const getWeekdayName = (dateStr: string) => {
+    try {
+      const dateObj = new Date(dateStr);
+      if (isNaN(dateObj.getTime())) {
+        return 'Thứ 4';
+      }
+      const day = dateObj.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      const weekdays = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+      return weekdays[day];
+    } catch {
+      return 'Thứ 4';
+    }
+  };
+
+  const liveWeeklyRevenue = React.useMemo(() => {
+    const chartData = REVENUE_WEEK_DATA.map(day => ({
+      ...day,
+      visits: day.visits,
+      revenue: day.revenue,
+    }));
+
+    appointments.forEach(appt => {
+      if (appt.status === 'Hoàn thành') {
+        const weekdayName = getWeekdayName(appt.date);
+        const matchedDay = chartData.find(d => d.name === weekdayName);
+        if (matchedDay) {
+          const matchedService = services?.find(s => s.name === appt.serviceName);
+          const price = matchedService ? matchedService.price : appt.price;
+          matchedDay.revenue += price;
+          matchedDay.visits += 1;
+        }
+      }
+    });
+
+    return chartData;
+  }, [appointments, services]);
+
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-slate-900 border border-slate-800 text-white rounded-2xl p-4 shadow-xl text-xs">
+          <p className="font-bold text-amber-400 mb-1.5">{data.name}</p>
+          <p className="font-medium text-slate-200">
+            Doanh thu: <span className="font-bold text-white">{formatVND(data.revenue)}</span>
+          </p>
+          <p className="text-slate-400 mt-0.5">
+            Lượt khách: <span className="font-semibold text-slate-300">{data.visits} lượt</span>
+          </p>
+        </div>
+      );
+    }
+    return null;
   };
 
   // Filter today's active appointments
@@ -60,11 +211,6 @@ export default function DashboardView({
 
   // Filter pending crm tasks
   const activeTasks = crmTasks.filter(t => t.status !== 'Đã hoàn thành').slice(0, 3);
-
-  // SVG Chart configurations
-  const maxRevenue = Math.max(...REVENUE_WEEK_DATA.map(d => d.revenue));
-  const chartHeight = 160;
-  const padding = 20;
 
   return (
     <div id="dashboard-view-root" className="space-y-8 animate-fade-in">
@@ -83,7 +229,7 @@ export default function DashboardView({
             Chào buổi sáng, {clinicProfile?.managerName || 'Anh'}.
           </h1>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Hôm nay cơ sở có <span className="text-amber-400 font-semibold">{stats.appointmentsToday} lịch hẹn</span> điều trị. Hãy kiểm tra phòng chuẩn bị đón khách VIP Nguyễn Phương Anh lúc 09:30 tại phòng VIP 1.
+            Hôm nay cơ sở có <span className="text-amber-400 font-semibold">{localStats.appointmentsToday} lịch hẹn</span> điều trị. Hãy kiểm tra phòng chuẩn bị đón khách VIP Nguyễn Phương Anh lúc 09:30 tại phòng VIP 1.
           </p>
           <div className="mt-6 flex gap-3">
             <button 
@@ -117,8 +263,57 @@ export default function DashboardView({
       {/* Dynamic Alerts & Reminders Section */}
       {(crmTasks.filter(t => t.status !== 'Đã hoàn thành' && t.dueDate < '2026-07-08').length > 0 || 
         crmTasks.filter(t => t.status !== 'Đã hoàn thành' && t.dueDate >= '2026-07-08' && t.dueDate <= '2026-07-11').length > 0 ||
-        appointments.filter(a => (a.status === 'Chờ phục vụ' || a.status === 'Đang thực hiện') && (a.date === '2026-07-08' || a.date === '2026-07-09')).length > 0) && (
+        appointments.filter(a => (a.status === 'Chờ phục vụ' || a.status === 'Đang thực hiện') && (a.date === '2026-07-08' || a.date === '2026-07-09')).length > 0 ||
+        isKpiDeficit) && (
         <div id="dashboard-live-alerts" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* KPI Target deficit warning */}
+          {isKpiDeficit && (
+            <div id="kpi-warning-card" className="bg-rose-50/80 border border-rose-200/80 rounded-3xl p-5 shadow-md flex items-start gap-4 col-span-1 lg:col-span-2 animate-pulse-slow">
+              <div className="p-3 bg-rose-500/10 rounded-2xl text-rose-600 shrink-0 ring-4 ring-rose-500/5">
+                <ShieldAlert className="h-6 w-6 animate-pulse text-rose-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="text-xs font-bold text-rose-950 uppercase tracking-wider flex items-center gap-1">
+                    <span>Cảnh báo hiệu suất KPI doanh thu ngày</span>
+                  </h4>
+                  <span className="px-2.5 py-0.5 bg-rose-500/20 rounded text-[9px] font-extrabold text-rose-800 border border-rose-500/35">
+                    🚨 Dưới mức an toàn 80%
+                  </span>
+                </div>
+                <p className="text-xs text-rose-900 mt-2 leading-relaxed">
+                  Doanh thu thực tế hiện tại đạt <span className="font-extrabold text-rose-950 font-mono text-[13px]">{formatVND(localStats.revenue)}</span>, mới chỉ đạt <span className="font-extrabold text-rose-600 text-sm font-mono">{kpiPercentage}%</span> của chỉ tiêu KPI ngày (<span className="font-semibold text-slate-700 font-mono">{formatVND(dailyTargetVal)}</span>). 
+                  Hiệu suất này thấp hơn mức an toàn tối thiểu <span className="font-bold text-rose-950">80%</span>. 
+                  Hệ thống ghi nhận cơ sở còn thiếu <span className="font-extrabold text-rose-700 font-mono">{formatVND(Math.max(0, dailyTargetVal * 0.8 - localStats.revenue))}</span> nữa để đạt mức an toàn, và thiếu <span className="font-extrabold text-rose-700 font-mono">{formatVND(Math.max(0, dailyTargetVal - localStats.revenue))}</span> để hoàn thành 100% KPI ngày.
+                  Vui lòng đẩy mạnh tư vấn chốt các gói liệu trình mới hoặc tăng cường cuộc gọi chăm sóc khách hàng hôm nay!
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2.5">
+                  <button 
+                    id="trigger-packages-sales"
+                    onClick={() => onNavigate('customers')}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold rounded-xl transition-all shadow-md shadow-rose-600/10 hover:shadow-lg"
+                  >
+                    Tư vấn chốt gói liệu trình
+                  </button>
+                  <button 
+                    id="trigger-add-appointment"
+                    onClick={() => onNavigate('appointments')}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-rose-400 text-[11px] font-bold rounded-xl transition-all shadow-sm"
+                  >
+                    Lên lịch hẹn mới
+                  </button>
+                  <button 
+                    id="trigger-care-calls"
+                    onClick={() => onNavigate('care')}
+                    className="px-4 py-2 bg-white hover:bg-rose-100/50 text-rose-700 border border-rose-200 text-[11px] font-bold rounded-xl transition-all"
+                  >
+                    Thực hiện cuộc gọi chăm sóc
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Overdue Warnings */}
           {crmTasks.filter(t => t.status !== 'Đã hoàn thành' && t.dueDate < '2026-07-08').length > 0 && (
             <div id="overdue-alerts-card" className="bg-rose-50/50 border border-rose-100 rounded-3xl p-5 shadow-sm flex items-start gap-3.5">
@@ -170,63 +365,135 @@ export default function DashboardView({
         </div>
       )}
 
+      {/* Time Period Selector for Stats */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-200/60 shadow-sm">
+        <div>
+          <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-500 block animate-pulse"></span>
+            Báo cáo phân tích hiệu năng Clinic
+          </h2>
+          <p className="text-[11px] text-slate-500">Cập nhật thực tế liên tục từ dữ liệu khách hàng & tích lũy cộng dồn thông minh</p>
+        </div>
+        <div className="inline-flex p-1 bg-slate-200/70 rounded-xl border border-slate-200 shadow-inner">
+          <button
+            onClick={() => setTimePeriod('day')}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timePeriod === 'day' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+          >
+            Hôm nay (Hàng ngày)
+          </button>
+          <button
+            onClick={() => setTimePeriod('month')}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${timePeriod === 'month' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+          >
+            Tháng này (Lũy kế tháng)
+          </button>
+        </div>
+      </div>
+
       {/* 4 Stats Cards */}
       <div id="stats-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Doanh thu */}
-        <div id="stat-card-revenue" className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex flex-col justify-between group hover:border-amber-300 hover:shadow-md transition-all duration-300">
+        <div id="stat-card-revenue" className={`bg-white rounded-2xl p-6 border shadow-sm flex flex-col justify-between group transition-all duration-500 ${isRevenueFlashed ? 'border-amber-500 ring-4 ring-amber-500/10 bg-amber-50/20 scale-[1.02]' : (timePeriod === 'day' && isKpiDeficit ? 'border-rose-300 bg-rose-50/5 hover:border-rose-400' : 'border-slate-200/80 hover:border-amber-300 hover:shadow-md')}`}>
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tổng doanh thu</span>
-            <div className="p-2.5 bg-amber-50 rounded-xl group-hover:bg-amber-100 transition-colors">
-              <DollarSign className="h-4.5 w-4.5 text-amber-600" />
+            <div className="flex flex-col">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                {timePeriod === 'month' ? 'Tổng doanh thu tháng' : 'Doanh thu hôm nay'}
+              </span>
+              {timePeriod === 'day' && isKpiDeficit && (
+                <span className="inline-flex items-center gap-1 mt-1 text-[9px] font-extrabold text-rose-600 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded animate-pulse">
+                  <ShieldAlert className="h-3 w-3" />
+                  Dưới 80% chỉ tiêu
+                </span>
+              )}
+              {isRevenueFlashed && !isKpiDeficit && (
+                <span className="text-[9px] font-bold text-amber-600 animate-pulse mt-0.5">
+                  ● Đồng bộ Live
+                </span>
+              )}
+            </div>
+            <div className={`p-2.5 rounded-xl transition-colors ${isRevenueFlashed ? 'bg-amber-100 text-amber-700' : (timePeriod === 'day' && isKpiDeficit ? 'bg-rose-50 text-rose-600 group-hover:bg-rose-100' : 'bg-amber-50 text-amber-600 group-hover:bg-amber-100')}`}>
+              <DollarSign className={`h-4.5 w-4.5 ${isRevenueFlashed ? 'animate-spin' : ''}`} />
             </div>
           </div>
           <div className="mt-4">
-            <p className="text-xl font-extrabold text-slate-900 tracking-tight leading-none">{formatVND(stats.revenue)}</p>
+            <p className={`text-xl font-extrabold tracking-tight leading-none transition-all duration-300 ${isRevenueFlashed ? 'text-amber-600 scale-105' : 'text-slate-900'}`}>
+              {formatVND(timePeriod === 'month' ? (localStats as any).monthlyRevenue || 10712500000 : localStats.revenue)}
+            </p>
             <div className="flex items-center gap-1.5 mt-2">
               <span className="inline-flex items-center text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">
                 <TrendingUp className="h-3 w-3 mr-0.5" />
-                +{stats.revenueTrend}%
+                +{localStats.revenueTrend}%
               </span>
-              <span className="text-[10px] text-slate-400 font-medium">So với tháng trước</span>
+              <span className="text-[10px] text-slate-400 font-medium">
+                {timePeriod === 'month' ? 'Lũy kế so với tháng trước' : 'Đồng bộ từ dữ liệu thực tế'}
+              </span>
             </div>
           </div>
         </div>
 
         {/* Lịch hẹn */}
-        <div id="stat-card-appointments" className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex flex-col justify-between group hover:border-amber-300 hover:shadow-md transition-all duration-300">
+        <div id="stat-card-appointments" className={`bg-white rounded-2xl p-6 border shadow-sm flex flex-col justify-between group transition-all duration-500 ${isAppointmentsFlashed ? 'border-indigo-500 ring-4 ring-indigo-500/10 bg-indigo-50/20 scale-[1.02]' : 'border-slate-200/80 hover:border-indigo-300 hover:shadow-md'}`}>
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Lịch hẹn hôm nay</span>
-            <div className="p-2.5 bg-indigo-50 rounded-xl group-hover:bg-indigo-100 transition-colors">
-              <Calendar className="h-4.5 w-4.5 text-indigo-600" />
+            <div className="flex flex-col">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                {timePeriod === 'month' ? 'Lượt phục vụ tháng' : 'Lịch hẹn hôm nay'}
+              </span>
+              {isAppointmentsFlashed && (
+                <span className="text-[9px] font-bold text-indigo-600 animate-pulse mt-0.5">
+                  ● Mới cập nhật
+                </span>
+              )}
+            </div>
+            <div className={`p-2.5 rounded-xl transition-colors ${isAppointmentsFlashed ? 'bg-indigo-100 text-indigo-700' : 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100'}`}>
+              <Calendar className={`h-4.5 w-4.5 ${isAppointmentsFlashed ? 'animate-bounce' : ''}`} />
             </div>
           </div>
           <div className="mt-4">
-            <p className="text-xl font-extrabold text-slate-900 tracking-tight leading-none">{stats.appointmentsToday} Khách</p>
+            <p className={`text-xl font-extrabold tracking-tight leading-none transition-all duration-300 ${isAppointmentsFlashed ? 'text-indigo-600 scale-105' : 'text-slate-900'}`}>
+              {timePeriod === 'month' ? `${(localStats as any).monthlyVisits || 850} Khách` : `${localStats.appointmentsToday} Khách`}
+            </p>
             <div className="flex items-center gap-1.5 mt-2">
               <span className="inline-flex items-center text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md">
-                Đã check-in: {stats.appointmentsCheckedIn}
+                {timePeriod === 'month' 
+                  ? `Chỉ tiêu: ${monthlyVisitsTargetVal} lượt` 
+                  : `Đã check-in: ${localStats.appointmentsCheckedIn}`}
               </span>
-              <span className="text-[10px] text-slate-400 font-medium">Đang tiến hành</span>
+              <span className="text-[10px] text-slate-400 font-medium">
+                {timePeriod === 'month' ? `Đạt ${monthlyVisitsPercentage}%` : 'Đang tiến hành'}
+              </span>
             </div>
           </div>
         </div>
 
         {/* Khách hàng mới */}
-        <div id="stat-card-new-customers" className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex flex-col justify-between group hover:border-amber-300 hover:shadow-md transition-all duration-300">
+        <div id="stat-card-new-customers" className={`bg-white rounded-2xl p-6 border shadow-sm flex flex-col justify-between group transition-all duration-500 ${isNewCustomersFlashed ? 'border-emerald-500 ring-4 ring-emerald-500/10 bg-emerald-50/20 scale-[1.02]' : 'border-slate-200/80 hover:border-emerald-300 hover:shadow-md'}`}>
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Khách hàng mới</span>
-            <div className="p-2.5 bg-emerald-50 rounded-xl group-hover:bg-emerald-100 transition-colors">
-              <Users className="h-4.5 w-4.5 text-emerald-600" />
+            <div className="flex flex-col">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                {timePeriod === 'month' ? 'Khách hàng mới tháng' : 'Khách hàng mới hôm nay'}
+              </span>
+              {isNewCustomersFlashed && (
+                <span className="text-[9px] font-bold text-emerald-600 animate-pulse mt-0.5">
+                  ● Đã lưu Cloud
+                </span>
+              )}
+            </div>
+            <div className={`p-2.5 rounded-xl transition-colors ${isNewCustomersFlashed ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100'}`}>
+              <Users className={`h-4.5 w-4.5 ${isNewCustomersFlashed ? 'animate-pulse' : ''}`} />
             </div>
           </div>
           <div className="mt-4">
-            <p className="text-xl font-extrabold text-slate-900 tracking-tight leading-none">{stats.newCustomers} Thành viên</p>
+            <p className={`text-xl font-extrabold tracking-tight leading-none transition-all duration-300 ${isNewCustomersFlashed ? 'text-emerald-600 scale-105' : 'text-slate-900'}`}>
+              {timePeriod === 'month' ? `${localStats.newCustomers} Thành viên` : `${Math.max(0, localStats.newCustomers - 119)} Thành viên`}
+            </p>
             <div className="flex items-center gap-1.5 mt-2">
               <span className="inline-flex items-center text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">
                 <TrendingUp className="h-3 w-3 mr-0.5" />
-                +{stats.newCustomersTrend}%
+                +{localStats.newCustomersTrend}%
               </span>
-              <span className="text-[10px] text-slate-400 font-medium">Tháng này</span>
+              <span className="text-[10px] text-slate-400 font-medium">
+                {timePeriod === 'month' ? 'Tháng này' : 'Đăng ký mới trong ngày'}
+              </span>
             </div>
           </div>
         </div>
@@ -240,12 +507,12 @@ export default function DashboardView({
             </div>
           </div>
           <div className="mt-4">
-            <p className="text-xl font-extrabold text-slate-900 tracking-tight leading-none">{stats.retentionRate}%</p>
+            <p className="text-xl font-extrabold text-slate-900 tracking-tight leading-none">{localStats.retentionRate}%</p>
             <div className="flex items-center gap-1.5 mt-2">
               <span className="inline-flex items-center text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">
-                +{stats.retentionTrend}%
+                +{localStats.retentionTrend}%
               </span>
-              <span className="text-[10px] text-slate-400 font-medium">Tăng trưởng đều</span>
+              <span className="text-[10px] text-slate-400 font-medium">Tích lũy thực tế theo ngày</span>
             </div>
           </div>
         </div>
@@ -256,119 +523,60 @@ export default function DashboardView({
         
         {/* Left 2 Columns */}
         <div id="dashboard-left-columns" className="lg:col-span-2 space-y-8">
-          {/* Week Revenue SVG Chart */}
+          {/* Week Revenue Recharts Live Chart */}
           <div id="weekly-revenue-chart-card" className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 id="weekly-chart-title" className="text-sm font-bold text-slate-800">Biểu đồ doanh thu tuần</h3>
-                <p className="text-[10px] text-slate-400">Doanh thu điều trị theo các ngày trong tuần</p>
+                <h3 id="weekly-chart-title" className="text-sm font-bold text-slate-800">Biểu đồ doanh thu tuần (Thời gian thực)</h3>
+                <p className="text-[10px] text-slate-400">Doanh thu điều trị tích hợp dữ liệu đồng bộ tức thời từ Firestore</p>
               </div>
               <div className="flex items-center gap-4 text-xs">
                 <div className="flex items-center gap-1.5">
                   <span className="h-2.5 w-2.5 rounded-full bg-amber-500 block"></span>
-                  <span className="text-slate-500 font-medium">Doanh thu (đ)</span>
+                  <span className="text-slate-500 font-medium text-[10px]">Doanh thu live (đ)</span>
                 </div>
               </div>
             </div>
 
-            {/* Custom Interactive SVG Chart */}
-            <div id="svg-chart-container" className="relative w-full h-48 select-none">
-              <svg className="w-full h-full" viewBox="0 0 500 180" preserveAspectRatio="none">
-                {/* Horizontal gridlines */}
-                {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
-                  const y = padding + (chartHeight - padding * 2) * ratio;
-                  const labelVal = Math.round(maxRevenue * (1 - ratio));
-                  return (
-                    <g key={index}>
-                      <line 
-                        x1="45" 
-                        y1={y} 
-                        x2="490" 
-                        y2={y} 
-                        stroke="#f1f5f9" 
-                        strokeWidth="1" 
-                        strokeDasharray={index === 4 ? "0" : "4 4"} 
-                      />
-                      <text 
-                        x="5" 
-                        y={y + 4} 
-                        fill="#94a3b8" 
-                        className="text-[9px] font-mono font-medium"
-                      >
-                        {labelVal >= 1000000 ? `${(labelVal / 1000000).toFixed(0)}M` : labelVal}
-                      </text>
-                    </g>
-                  );
-                })}
-
-                {/* Bars or Areas */}
-                {REVENUE_WEEK_DATA.map((item, index) => {
-                  const barWidth = 28;
-                  const xGridSpacing = (490 - 45) / 6;
-                  const x = 45 + xGridSpacing * index + (xGridSpacing - barWidth) / 2;
-                  
-                  // Calculate dynamic Y coordinate
-                  const height = ((item.revenue) / maxRevenue) * (chartHeight - padding * 2);
-                  const y = chartHeight - padding - height;
-
-                  const isHovered = hoveredBarIndex === index;
-
-                  return (
-                    <g key={index}>
-                      {/* Interactive Bar */}
-                      <rect
-                        x={x}
-                        y={y}
-                        width={barWidth}
-                        height={height}
-                        rx="6"
-                        fill={isHovered ? 'url(#amberGradHover)' : 'url(#amberGrad)'}
-                        className="transition-all duration-300 cursor-pointer"
-                        onMouseEnter={() => setHoveredBarIndex(index)}
-                        onMouseLeave={() => setHoveredBarIndex(null)}
-                      />
-                      {/* Day Label */}
-                      <text
-                        x={x + barWidth / 2}
-                        y={chartHeight - 4}
-                        textAnchor="middle"
-                        fill={isHovered ? '#b45309' : '#64748b'}
-                        className="text-[9px] font-sans font-semibold transition-colors duration-200"
-                      >
-                        {item.name}
-                      </text>
-                    </g>
-                  );
-                })}
-
-                {/* Gradients */}
-                <defs>
-                  <linearGradient id="amberGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.85" />
-                    <stop offset="100%" stopColor="#d97706" stopOpacity="0.2" />
-                  </linearGradient>
-                  <linearGradient id="amberGradHover" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.95" />
-                    <stop offset="100%" stopColor="#b45309" stopOpacity="0.3" />
-                  </linearGradient>
-                </defs>
-              </svg>
-
-              {/* Dynamic Overlay Hover Tooltip */}
-              {hoveredBarIndex !== null && (
-                <div 
-                  className="absolute bg-slate-900 text-white rounded-xl p-2.5 shadow-xl text-[10px] pointer-events-none transition-all duration-200"
-                  style={{
-                    left: `${((hoveredBarIndex * (445 / 6) + 65) / 500) * 100}%`,
-                    top: `10px`,
-                    transform: 'translateX(-50%)'
-                  }}
+            {/* Recharts Area Chart */}
+            <div id="recharts-chart-container" className="w-full h-56 select-none">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={liveWeeklyRevenue}
+                  margin={{ top: 10, right: 10, left: -15, bottom: 0 }}
                 >
-                  <p className="font-bold text-amber-400">{REVENUE_WEEK_DATA[hoveredBarIndex].name}</p>
-                  <p className="font-mono text-slate-200 mt-0.5">Doanh thu: <span className="font-bold">{formatVND(REVENUE_WEEK_DATA[hoveredBarIndex].revenue)}</span></p>
-                  <p className="text-slate-400 mt-0.5">Lượt khách: {REVENUE_WEEK_DATA[hoveredBarIndex].visits} lượt</p>
-                </div>
-              )}
+                  <defs>
+                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#64748b', fontSize: 10, fontWeight: 500 }}
+                  />
+                  <YAxis 
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#94a3b8', fontSize: 9, fontFamily: 'monospace' }}
+                    tickFormatter={(value) => value >= 1000000 ? `${(value / 1000000).toFixed(0)}M` : value}
+                  />
+                  <RechartsTooltip 
+                    content={<CustomTooltip />}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="revenue" 
+                    stroke="#d97706" 
+                    strokeWidth={2}
+                    fillOpacity={1} 
+                    fill="url(#colorRevenue)" 
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
@@ -480,6 +688,104 @@ export default function DashboardView({
         {/* Right 1 Column - Tasks & Active Techs */}
         <div id="dashboard-right-column" className="space-y-8">
           
+          {/* KPI & Business Targets Monitor */}
+          <div id="kpi-monitor-card" className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-4 animate-fade-in">
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+              <Target className="h-4.5 w-4.5 text-amber-500 animate-pulse" />
+              <div>
+                <h3 className="text-xs font-bold text-slate-850 uppercase tracking-wider leading-none">Chỉ tiêu & KPI Mục tiêu</h3>
+                <p className="text-[9px] text-slate-400 mt-1">Đo lường tiến độ kinh doanh thời gian thực</p>
+              </div>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Daily Revenue Target */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-end">
+                  <span className="font-semibold text-slate-700 text-[10px]">Doanh thu Ngày</span>
+                  <span className="font-mono text-[10px] font-bold text-amber-600">
+                    {formatVND(localStats.revenue)} / <span className="text-slate-400">{formatVND(dailyTargetVal)}</span>
+                  </span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden relative border border-slate-200/60" title={`Mức đạt: ${kpiPercentage}% (Mức an toàn tối thiểu: 80%)`}>
+                  <div 
+                    className={`h-full rounded-full transition-all duration-500 ${isKpiDeficit ? 'bg-gradient-to-r from-rose-500 to-rose-400' : 'bg-gradient-to-r from-amber-500 to-amber-400'}`} 
+                    style={{ width: `${Math.min(100, kpiPercentage)}%` }}
+                  />
+                  {/* Visual safe line at 80% */}
+                  <div className="absolute top-0 bottom-0 left-[80%] w-0.5 bg-rose-600/60 z-10" />
+                  <span className="absolute top-0 bottom-0 left-[81%] text-[8px] font-bold text-rose-700 flex items-center select-none pointer-events-none opacity-80">
+                    80% An toàn
+                  </span>
+                </div>
+                <div className="flex justify-between text-[8px] font-bold text-slate-400">
+                  <span>Tiến độ thực tế</span>
+                  <span>{kpiPercentage}%</span>
+                </div>
+              </div>
+
+              {/* Daily Visits Target */}
+              <div className="space-y-1.5 border-t border-slate-50 pt-3">
+                <div className="flex justify-between items-end">
+                  <span className="font-semibold text-slate-700 text-[10px]">Lượt khách Ngày</span>
+                  <span className="font-mono text-[10px] font-bold text-sky-600">
+                    {appointmentsTodayVal} lượt / <span className="text-slate-400">{dailyVisitsTargetVal} lượt</span>
+                  </span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                  <div 
+                    className="bg-sky-500 h-full rounded-full transition-all duration-500" 
+                    style={{ width: `${Math.min(100, dailyVisitsPercentage)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[8px] font-bold text-slate-400">
+                  <span>Tiến độ thực tế</span>
+                  <span>{dailyVisitsPercentage}%</span>
+                </div>
+              </div>
+
+              {/* Monthly Revenue Target */}
+              <div className="space-y-1.5 border-t border-slate-50 pt-3">
+                <div className="flex justify-between items-end">
+                  <span className="font-semibold text-slate-700 text-[10px]">Doanh thu Tháng</span>
+                  <span className="font-mono text-[10px] font-bold text-emerald-600">
+                    {formatVND(monthlyRevenueVal)} / <span className="text-slate-400">{formatVND(monthlyTargetVal)}</span>
+                  </span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                  <div 
+                    className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
+                    style={{ width: `${Math.min(100, monthlyRevenuePercentage)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[8px] font-bold text-slate-400">
+                  <span>Tiến độ thực tế</span>
+                  <span>{monthlyRevenuePercentage}%</span>
+                </div>
+              </div>
+
+              {/* Monthly Visits Target */}
+              <div className="space-y-1.5 border-t border-slate-50 pt-3">
+                <div className="flex justify-between items-end">
+                  <span className="font-semibold text-slate-700 text-[10px]">Lượt khách Tháng</span>
+                  <span className="font-mono text-[10px] font-bold text-indigo-600">
+                    {monthlyVisitsVal} lượt / <span className="text-slate-400">{monthlyVisitsTargetVal} lượt</span>
+                  </span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                  <div 
+                    className="bg-indigo-500 h-full rounded-full transition-all duration-500" 
+                    style={{ width: `${Math.min(100, monthlyVisitsPercentage)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[8px] font-bold text-slate-400">
+                  <span>Tiến độ thực tế</span>
+                  <span>{monthlyVisitsPercentage}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* CRM / Customer Care Tasks list */}
           <div id="crm-tasks-card" className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm">
             <div className="flex items-center justify-between mb-6">

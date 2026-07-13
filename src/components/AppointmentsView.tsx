@@ -402,7 +402,21 @@ export default function AppointmentsView({
                           referrerPolicy="no-referrer"
                         />
                         <div>
-                          <p className="font-bold text-slate-900 group-hover:text-amber-600 transition-colors leading-tight">{appt.customerName}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="font-bold text-slate-900 group-hover:text-amber-600 transition-colors leading-tight">{appt.customerName}</p>
+                            {(() => {
+                              const cust = customers.find(c => c.id === appt.customerId);
+                              const lowPkgs = cust?.activePackages?.filter(pkg => {
+                                const rem = pkg.totalSessions - pkg.usedSessions;
+                                return rem > 0 && rem <= 2;
+                              }) || [];
+                              return lowPkgs.length > 0 && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-rose-500 text-white animate-pulse" title={`Cảnh báo: Chỉ còn ${lowPkgs.map(p => `${p.packageName}: ${p.totalSessions - p.usedSessions} buổi`).join(', ')}`}>
+                                  ⚠️ Chỉ còn {lowPkgs[0].totalSessions - lowPkgs[0].usedSessions} buổi
+                                </span>
+                              );
+                            })()}
+                          </div>
                           <p className="text-[10px] text-slate-400 font-medium font-mono mt-0.5">{appt.customerPhone}</p>
                         </div>
                       </div>

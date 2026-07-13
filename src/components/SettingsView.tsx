@@ -14,7 +14,10 @@ import {
   X,
   User,
   Image as ImageIcon,
-  Download
+  Download,
+  Search,
+  Filter,
+  Target
 } from 'lucide-react';
 import { ServiceItem, ClinicProfile, Customer, Appointment, CRMTask, Technician } from '../types';
 import { exportToExcel } from '../utils/exportToExcel';
@@ -30,6 +33,8 @@ interface SettingsViewProps {
   appointments?: Appointment[];
   crmTasks?: CRMTask[];
   technicians?: Technician[];
+  stats?: any;
+  onUpdateStats?: (newStats: any) => void;
 }
 
 const SERVICE_CATEGORIES = [
@@ -55,7 +60,9 @@ export default function SettingsView({
   customers = [],
   appointments = [],
   crmTasks = [],
-  technicians = []
+  technicians = [],
+  stats,
+  onUpdateStats
 }: SettingsViewProps) {
   // Clinic Profile form state
   const [clinicName, setClinicName] = useState(clinicProfile.name);
@@ -66,6 +73,52 @@ export default function SettingsView({
   const [managerAvatar, setManagerAvatar] = useState(clinicProfile.managerAvatar);
   const [logoUrl, setLogoUrl] = useState(clinicProfile.logoUrl);
   const [dashboardImageUrl, setDashboardImageUrl] = useState(clinicProfile.dashboardImageUrl);
+
+  // Targets / KPI Settings state
+  const [dailyRevTarget, setDailyRevTarget] = useState(stats?.dailyRevenueTarget || stats?.dailyTarget || 550000000);
+  const [dailyVisTarget, setDailyVisTarget] = useState(stats?.dailyVisitsTarget || 40);
+  const [monthlyRevTarget, setMonthlyRevTarget] = useState(stats?.monthlyRevenueTarget || stats?.monthlyTarget || 12000000000);
+  const [monthlyVisTarget, setMonthlyVisTarget] = useState(stats?.monthlyVisitsTarget || 1000);
+
+  React.useEffect(() => {
+    if (stats) {
+      setDailyRevTarget(stats.dailyRevenueTarget || stats.dailyTarget || 550000000);
+      setDailyVisTarget(stats.dailyVisitsTarget || 40);
+      setMonthlyRevTarget(stats.monthlyRevenueTarget || stats.monthlyTarget || 12000000000);
+      setMonthlyVisTarget(stats.monthlyVisitsTarget || 1000);
+    }
+  }, [stats]);
+
+  // Automatically estimate daily targets and scale customer visits proportionally
+  const handleMonthlyRevChange = (val: number) => {
+    setMonthlyRevTarget(val);
+
+    // Calculate daily revenue target (divide by 30 days)
+    const projectedDailyRev = Math.round(val / 30);
+    setDailyRevTarget(projectedDailyRev);
+
+    // Calculate daily & monthly visits based on 500,000đ per guest
+    const projectedDailyVisits = Math.max(1, Math.round(projectedDailyRev / 500000));
+    setDailyVisTarget(projectedDailyVisits);
+
+    const projectedMonthlyVisits = Math.max(1, Math.round(val / 500000));
+    setMonthlyVisTarget(projectedMonthlyVisits);
+  };
+
+  const handleSaveTargets = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (onUpdateStats && stats) {
+      onUpdateStats({
+        ...stats,
+        dailyTarget: Number(dailyRevTarget),
+        dailyRevenueTarget: Number(dailyRevTarget),
+        dailyVisitsTarget: Number(dailyVisTarget),
+        monthlyRevenueTarget: Number(monthlyRevTarget),
+        monthlyVisitsTarget: Number(monthlyVisTarget)
+      });
+      alert('Đã cập nhật chỉ tiêu doanh thu & lượt khách thành công!');
+    }
+  };
 
   // New Service form states
   const [newSrvName, setNewSrvName] = useState('');
@@ -79,6 +132,10 @@ export default function SettingsView({
   const [editSrvPrice, setEditSrvPrice] = useState(0);
   const [editSrvDuration, setEditSrvDuration] = useState(60);
   const [editSrvCat, setEditSrvCat] = useState<ServiceItem['category']>('Trẻ hoá da');
+
+  // Search & Filter service catalog states
+  const [srvSearchQuery, setSrvSearchQuery] = useState('');
+  const [srvCatFilter, setSrvCatFilter] = useState<string>('All');
 
   const handleSaveClinicProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,6 +200,23 @@ export default function SettingsView({
   const formatVND = (num: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num);
   };
+
+  // Filtered services based on search query and category filter
+  const removeAccents = (str: string) => {
+    return str
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D');
+  };
+
+  const filteredServices = services.filter((srv) => {
+    const normalizedSrvName = removeAccents(srv.name.toLowerCase());
+    const normalizedQuery = removeAccents(srvSearchQuery.toLowerCase());
+    const matchesSearch = normalizedSrvName.includes(normalizedQuery) || srv.name.toLowerCase().includes(srvSearchQuery.toLowerCase());
+    const matchesCategory = srvCatFilter === 'All' || srv.category === srvCatFilter;
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <div id="settings-view-root" className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in text-xs text-slate-700">
@@ -415,6 +489,90 @@ export default function SettingsView({
             </button>
           </div>
         </div>
+
+        {/* KPI & Targets settings card */}
+        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-md p-6 space-y-6 animate-fade-in">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+            <Target className="h-4 w-4 text-amber-500" />
+            <span className="text-xs font-bold text-slate-850 uppercase tracking-wider block">Cấu hình Chỉ tiêu & KPI</span>
+          </div>
+
+          <form onSubmit={handleSaveTargets} className="space-y-5">
+            {/* Daily KPI */}
+            <div className="space-y-3.5">
+              <span className="text-[10px] font-extrabold text-amber-600 uppercase tracking-wider block">Chỉ tiêu Ngày</span>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Doanh thu ngày (đ)</label>
+                  <input
+                    type="number"
+                    value={dailyRevTarget}
+                    onChange={(e) => setDailyRevTarget(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white text-slate-800 font-bold"
+                    min="0"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Số lượt khách ngày</label>
+                  <input
+                    type="number"
+                    value={dailyVisTarget}
+                    onChange={(e) => setDailyVisTarget(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white text-slate-800 font-bold"
+                    min="0"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Monthly KPI */}
+            <div className="space-y-3.5 border-t border-slate-100 pt-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold text-blue-600 uppercase tracking-wider block">Chỉ tiêu Tháng</span>
+                <span className="text-[8px] bg-blue-50 text-blue-700 border border-blue-150 rounded-full px-2 py-0.5 font-bold animate-pulse">
+                  Dự tính & chia tỉ lệ tự động
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Doanh thu tháng (đ)</label>
+                  <input
+                    type="number"
+                    value={monthlyRevTarget}
+                    onChange={(e) => handleMonthlyRevChange(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white text-slate-800 font-bold"
+                    min="0"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Số lượt khách tháng</label>
+                  <input
+                    type="number"
+                    value={monthlyVisTarget}
+                    onChange={(e) => setMonthlyVisTarget(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white text-slate-800 font-bold"
+                    min="0"
+                    required
+                  />
+                </div>
+              </div>
+              <p className="text-[9px] text-slate-400 leading-relaxed italic mt-1.5 bg-slate-50 border border-slate-150 p-2 rounded-xl">
+                💡 <strong>Mẹo thông minh:</strong> Khi bạn nhập/thay đổi Doanh thu tháng, hệ thống sẽ tự động quy đổi sang Doanh thu ngày (chia 30 ngày) và phân chia tỷ lệ số lượt khách dự tính dựa trên định mức trung bình <strong>500.000đ/đầu khách</strong>. Bạn vẫn có thể tùy chỉnh thủ công các ô khác theo ý muốn.
+              </p>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all mt-4"
+            >
+              <Save className="h-4 w-4" />
+              <span>Cập nhật chỉ tiêu KPI</span>
+            </button>
+          </form>
+        </div>
       </div>
 
       {/* Right 2 Columns: Service price catalog */}
@@ -431,6 +589,69 @@ export default function SettingsView({
             </span>
           </div>
 
+          {/* Bộ lọc và Tìm kiếm */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+              <input
+                id="search-services-input"
+                type="text"
+                placeholder="Tìm tên dịch vụ..."
+                value={srvSearchQuery}
+                onChange={(e) => setSrvSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
+              />
+              {srvSearchQuery && (
+                <button 
+                  type="button"
+                  onClick={() => setSrvSearchQuery('')}
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Filter className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+              <select
+                id="filter-services-category"
+                value={srvCatFilter}
+                onChange={(e) => setSrvCatFilter(e.target.value)}
+                className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-700 font-medium"
+              >
+                <option value="All">Tất cả nhóm dịch vụ ({services.length})</option>
+                {SERVICE_CATEGORIES.map((cat) => {
+                  const count = services.filter(s => s.category === cat).length;
+                  return (
+                    <option key={cat} value={cat}>
+                      {cat} ({count})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          </div>
+
+          {/* Hiển thị số kết quả lọc */}
+          {(srvSearchQuery || srvCatFilter !== 'All') && (
+            <div className="flex items-center justify-between text-[10px] bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
+              <span className="text-slate-500">
+                Đang hiển thị <span className="font-bold text-slate-800">{filteredServices.length}</span> trên <span className="font-bold text-slate-800">{services.length}</span> dịch vụ
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSrvSearchQuery('');
+                  setSrvCatFilter('All');
+                }}
+                className="text-amber-600 hover:text-amber-700 font-bold"
+              >
+                Xóa bộ lọc
+              </button>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table id="services-settings-table" className="w-full text-left border-collapse">
               <thead>
@@ -443,40 +664,50 @@ export default function SettingsView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                {services.map((srv) => (
-                  <tr id={`srv-row-${srv.id}`} key={srv.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="py-3 font-semibold text-slate-900">{srv.name}</td>
-                    <td className="py-3">
-                      <span className="px-2 py-0.5 bg-amber-500/10 rounded text-[9px] font-bold text-amber-800">
-                        {srv.category}
-                      </span>
-                    </td>
-                    <td className="py-3 font-mono text-slate-500 font-semibold">{srv.durationMin} phút</td>
-                    <td className="py-3 font-bold text-slate-800 font-mono">
-                      {formatVND(srv.price)}
-                    </td>
-                    <td className="py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          id={`btn-trigger-edit-${srv.id}`}
-                          onClick={() => handleTriggerEdit(srv)}
-                          className="p-1.5 hover:bg-slate-100 rounded text-amber-600 hover:text-amber-700 transition-colors inline-flex items-center"
-                          title="Sửa toàn bộ dịch vụ"
-                        >
-                          <Edit3 className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          id={`btn-delete-${srv.id}`}
-                          onClick={() => handleDeleteSrvClick(srv.id, srv.name)}
-                          className="p-1.5 hover:bg-rose-50 rounded text-rose-500 hover:text-rose-700 transition-colors inline-flex items-center"
-                          title="Xóa dịch vụ"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
+                {filteredServices.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-slate-400">
+                      Không tìm thấy dịch vụ nào phù hợp với bộ lọc tìm kiếm.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredServices.map((srv) => (
+                    <tr id={`srv-row-${srv.id}`} key={srv.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3 font-semibold text-slate-900">{srv.name}</td>
+                      <td className="py-3">
+                        <span className="px-2 py-0.5 bg-amber-500/10 rounded text-[9px] font-bold text-amber-800">
+                          {srv.category}
+                        </span>
+                      </td>
+                      <td className="py-3 font-mono text-slate-500 font-semibold">{srv.durationMin} phút</td>
+                      <td className="py-3 font-bold text-slate-800 font-mono">
+                        {formatVND(srv.price)}
+                      </td>
+                      <td className="py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            id={`btn-trigger-edit-${srv.id}`}
+                            type="button"
+                            onClick={() => handleTriggerEdit(srv)}
+                            className="p-1.5 hover:bg-slate-100 rounded text-amber-600 hover:text-amber-700 transition-colors inline-flex items-center"
+                            title="Sửa toàn bộ dịch vụ"
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            id={`btn-delete-${srv.id}`}
+                            type="button"
+                            onClick={() => handleDeleteSrvClick(srv.id, srv.name)}
+                            className="p-1.5 hover:bg-rose-50 rounded text-rose-500 hover:text-rose-700 transition-colors inline-flex items-center"
+                            title="Xóa dịch vụ"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

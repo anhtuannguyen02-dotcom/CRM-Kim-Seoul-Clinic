@@ -10,6 +10,7 @@ export interface Customer {
   totalSpent: number;
   totalVisits: number;
   notes: string;
+  address?: string;
   activePackages: {
     packageName: string;
     totalSessions: number;
@@ -115,5 +116,18 @@ export interface ClinicProfile {
   logoUrl: string;
   dashboardImageUrl: string;
   branchName?: string;
+}
+
+export interface RevenueReport {
+  id: string; // e.g. "day_2026-07-08", "month_2026-07", "year_2026"
+  type: 'day' | 'month' | 'year';
+  period: string; // "2026-07-08", "2026-07", "2026"
+  revenue: number;
+  appointmentsCount: number;
+  completedAppointments: number;
+  visits: number;
+  newCustomers: number;
+  notes?: string;
+  updatedAt: string;
 }
 

@@ -1,0 +1,137 @@
+{
+  "collections": {
+    "clinic_profile": {
+      "documents": {
+        "main": {
+          "name": "string",
+          "address": "string",
+          "phone": "string",
+          "hours": "string",
+          "managerName": "string",
+          "managerAvatar": "string",
+          "logoUrl": "string",
+          "dashboardImageUrl": "string",
+          "branchName": "string"
+        }
+      }
+    },
+    "services": {
+      "documents": {
+        "__docId__": {
+          "id": "string",
+          "name": "string",
+          "price": "number",
+          "durationMin": "number",
+          "category": "string"
+        }
+      }
+    },
+    "technicians": {
+      "documents": {
+        "__docId__": {
+          "id": "string",
+          "name": "string",
+          "phone": "string",
+          "avatar": "string",
+          "status": "string",
+          "specialties": "array",
+          "rating": "number"
+        }
+      }
+    },
+    "customers": {
+      "documents": {
+        "__docId__": {
+          "id": "string",
+          "name": "string",
+          "phone": "string",
+          "email": "string",
+          "createdAt": "string",
+          "totalSpent": "number",
+          "avatar": "string",
+          "treatmentCount": "number",
+          "packages": "array",
+          "history": "array",
+          "notes": "string",
+          "source": "string"
+        }
+      }
+    },
+    "appointments": {
+      "documents": {
+        "__docId__": {
+          "id": "string",
+          "customerName": "string",
+          "customerPhone": "string",
+          "serviceName": "string",
+          "date": "string",
+          "time": "string",
+          "technicianName": "string",
+          "status": "string",
+          "price": "number",
+          "isPaid": "boolean",
+          "paymentMethod": "string",
+          "notes": "string"
+        }
+      }
+    },
+    "crm_tasks": {
+      "documents": {
+        "__docId__": {
+          "id": "string",
+          "customerName": "string",
+          "customerPhone": "string",
+          "taskType": "string",
+          "dueDate": "string",
+          "status": "string",
+          "notes": "string",
+          "assignedTo": "string"
+        }
+      }
+    },
+    "promotions": {
+      "documents": {
+        "__docId__": {
+          "id": "string",
+          "title": "string",
+          "description": "string",
+          "discountPercent": "number",
+          "startDate": "string",
+          "endDate": "string",
+          "status": "string",
+          "code": "string"
+        }
+      }
+    },
+    "stats": {
+      "documents": {
+        "daily": {
+          "todayRevenue": "number",
+          "revenueGrowth": "number",
+          "todayAppointments": "number",
+          "appointmentsGrowth": "number",
+          "newCustomers": "number",
+          "customersGrowth": "number",
+          "occupancyRate": "number",
+          "occupancyGrowth": "number"
+        }
+      }
+    },
+    "revenue_reports": {
+      "documents": {
+        "__docId__": {
+          "id": "string",
+          "type": "string",
+          "period": "string",
+          "revenue": "number",
+          "appointmentsCount": "number",
+          "completedAppointments": "number",
+          "visits": "number",
+          "newCustomers": "number",
+          "notes": "string",
+          "updatedAt": "string"
+        }
+      }
+    }
+  }
+}
